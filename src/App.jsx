@@ -2636,11 +2636,11 @@ let _apiKey = "";
 const setApiKey = (k) => { _apiKey = k.trim(); };
 const getApiKey = () => _apiKey;
 
-const callClaude = async (prompt) => {
+const callClaude = async (prompt, model = "claude-sonnet-4-6") => {
   const key = getApiKey();
 
   const body = JSON.stringify({
-    model: "claude-sonnet-4-6",
+    model: model,
     max_tokens: 2000,
     tools: [{ type: "web_search_20250305", name: "web_search" }],
     messages: [{ role: "user", content: prompt }],
@@ -4030,7 +4030,7 @@ Devolve APENAS JSON válido (sem markdown):
 {"titulo":"<título>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número>,"area":<número>,"quartos":<número>,"casasBanho":<número>,"freguesia":"<freguesia>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona>","descricao":"<até 300 chars>","referencia":"<ref>","encontrado":true}
 Se não encontrares: {"encontrado":false,"motivo":"<razão>"}`;
       setStep("🤖 A extrair dados com IA...");
-      const raw = await callClaude(prompt);
+      const raw = await callClaude(prompt, "claude-haiku-4-5");
       setStep("📋 A preparar pré-visualização...");
       const json = parseJSON(raw);
       if (!json) throw new Error("Não foi possível processar a resposta da IA.");
