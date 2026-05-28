@@ -2636,13 +2636,13 @@ let _apiKey = "";
 const setApiKey = (k) => { _apiKey = k.trim(); };
 const getApiKey = () => _apiKey;
 
-const callClaude = async (prompt, model = "claude-sonnet-4-6") => {
+const callClaude = async (prompt, model = "claude-sonnet-4-6", useSearch = true) => {
   const key = getApiKey();
 
   const body = JSON.stringify({
     model: model,
     max_tokens: 2000,
-    tools: [{ type: "web_search_20250305", name: "web_search" }],
+    ...(useSearch ? { tools: [{ type: "web_search_20250305", name: "web_search" }] } : {}),
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -4049,18 +4049,54 @@ Se não encontrares: {"encontrado":false,"motivo":"<razão>"}`;
     } finally { setLoad(false); setStep(""); }
   };
 
-  // ── Importar por texto colado ─────────────────────────────────
-  const importarPorTexto = () => {
+  // ── Importar por texto colado (via Haiku, sem web search) ─────
+  const importarPorTexto = async () => {
     if (texto.trim().length < 30) { setError("Cola mais texto do anúncio para a extracção funcionar."); return; }
     setLoad(true); setError("");
-    setTimeout(() => {
+    try {
+      setStep("🤖 A extrair dados com IA (Haiku)...");
+      const prompt = `Extrai os dados deste anúncio imobiliário português. O texto foi copiado de um portal (Idealista, Imovirtual, Casa Sapo, etc.).
+
+TEXTO DO ANÚNCIO:
+"""
+${texto.slice(0, 6000)}
+"""
+
+Devolve APENAS JSON válido (sem markdown, sem explicações):
+{"titulo":"<título curto e descritivo>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número sem símbolos>,"area":<número em m²>,"quartos":<número, ex: T3 = 3>,"casasBanho":<número>,"freguesia":"<freguesia se mencionada>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona/bairro>","descricao":"<resumo até 300 chars>","referencia":"<referência do anúncio se houver>","encontrado":true}
+
+Regras:
+- Se um campo não existir no texto, usa "" para texto ou 0 para números.
+- "valor" é o preço (remove € e espaços). Se for arrendamento, é o valor mensal.
+- "quartos": extrai de T0/T1/T2/T3... ou "X quartos/assoalhadas".
+- Identifica o distrito a partir do concelho se possível (ex: Cascais → Lisboa).
+- Se o texto não tiver dados imobiliários suficientes: {"encontrado":false,"motivo":"Texto sem dados suficientes"}`;
+
+      const raw = await callClaude(prompt, "claude-haiku-4-5", false);
+      setStep("📋 A preparar pré-visualização...");
+      const json = parseJSON(raw);
+
+      if (json && json.encontrado !== false && (json.valor > 0 || json.area > 0 || json.titulo)) {
+        json.foto = fotoMap[json.tipo] || "🏠";
+        json.status = "Disponível";
+        json.cidade = json.concelho || "";
+        json.portal = detectPortal(url) || "Manual";
+        setPreview(json);
+      } else {
+        // Fallback: extração local por regex
+        const dados = extrairDoTexto(texto);
+        if (!dados.encontrado) { setError("Não foi possível extrair dados. Cola o texto completo do anúncio."); }
+        else setPreview(dados);
+      }
+    } catch(e) {
+      // Se a IA falhar, tenta a extração local gratuita
+      console.warn("Haiku falhou, a usar extração local:", e.message);
       try {
         const dados = extrairDoTexto(texto);
-        if (!dados.encontrado) { setError("Não foi possível extrair dados. Cola o texto completo do anúncio."); setLoad(false); return; }
-        setPreview(dados);
-      } catch(e) { setError("Erro ao processar o texto."); }
-      setLoad(false);
-    }, 400);
+        if (!dados.encontrado) { setError("Não foi possível extrair dados. Cola o texto completo do anúncio."); }
+        else setPreview(dados);
+      } catch(e2) { setError("Erro ao processar o texto."); }
+    } finally { setLoad(false); setStep(""); }
   };
 
   const resetar = () => { setPreview(null); setError(""); };
@@ -4102,7 +4138,7 @@ Se não encontrares: {"encontrado":false,"motivo":"<razão>"}`;
             <textarea value={texto} onChange={e=>{setTexto(e.target.value);setError("");}}
               placeholder="Cola aqui o texto completo do anúncio (título, preço, área, localização, descrição)..."
               rows={6} style={{marginTop:6,resize:"vertical"}}/>
-            <p style={{fontSize:11,color:G.textDim,marginTop:3}}>{texto.length} caracteres · Quanto mais texto, melhor a extracção</p>
+            <p style={{fontSize:11,color:G.textDim,marginTop:3}}>{texto.length} caracteres · A IA (Haiku) extrai todos os campos — barato e sem pesquisa web</p>
           </div>
         </>
       )}
