@@ -3969,7 +3969,7 @@ const initT = [
 ];
 
 // ── IMÓVEIS ───────────────────────────────────────────────────
-const emptyIm={titulo:"",tipo:"Apartamento",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:""};
+const emptyIm={titulo:"",tipo:"Apartamento",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:"",fotos:[]};
 
 // ── Import from Idealista / Imovirtual ────────────────────────
 const ImportModal = ({onClose, onImport}) => {
@@ -4228,6 +4228,95 @@ Regras:
 
 
 
+// ── FICHA DETALHADA DO IMÓVEL ─────────────────────────────────
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
+  const [fotoIdx,setFotoIdx]=useState(0);
+  const fotos=imovel.fotos||[];
+  const temFotos=fotos.length>0;
+  const loc=[imovel.freguesia,imovel.concelho,imovel.distrito].filter(Boolean).join(", ")||imovel.bairro||"—";
+  return(
+    <Modal title="" onClose={onClose}>
+      {/* Galeria */}
+      <div style={{margin:"-4px 0 18px"}}>
+        {temFotos ? (
+          <div>
+            <div style={{position:"relative",width:"100%",height:mob?220:300,borderRadius:12,overflow:"hidden",background:G.surface2}}>
+              <img src={fotos[fotoIdx]} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              {fotos.length>1&&<>
+                <button onClick={()=>setFotoIdx(i=>i===0?fotos.length-1:i-1)} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                <button onClick={()=>setFotoIdx(i=>i===fotos.length-1?0:i+1)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                <div style={{position:"absolute",bottom:10,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,.6)",borderRadius:12,padding:"3px 10px",fontSize:12,color:"#fff"}}>{fotoIdx+1} / {fotos.length}</div>
+              </>}
+            </div>
+            {fotos.length>1&&<div style={{display:"flex",gap:6,marginTop:8,overflowX:"auto",paddingBottom:4}}>
+              {fotos.map((src,i)=>(
+                <img key={i} src={src} alt="" onClick={()=>setFotoIdx(i)} style={{width:54,height:54,borderRadius:6,objectFit:"cover",cursor:"pointer",flexShrink:0,border:i===fotoIdx?`2px solid ${G.gold1}`:"2px solid transparent",opacity:i===fotoIdx?1:.6}}/>
+              ))}
+            </div>}
+          </div>
+        ) : (
+          <div style={{width:"100%",height:mob?160:200,borderRadius:12,background:G.surface2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,border:`1px dashed ${G.border}`}}>
+            <span style={{fontSize:56}}>{imovel.foto}</span>
+            <p style={{fontSize:12,color:G.textDim}}>Sem fotografias · adiciona ao editar</p>
+          </div>
+        )}
+      </div>
+
+      {/* Cabeçalho */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16}}>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:26,fontWeight:600,marginBottom:4}}>{imovel.titulo}</h2>
+          <p style={{fontSize:13,color:G.textMuted}}>{loc}</p>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <p style={{fontSize:mob?20:24,fontWeight:700,color:G.gold1,fontFamily:"'Cormorant Garamond',serif"}}>{imovel.finalidade==="Arrendamento"?`${fmtFull(imovel.valor)}`:fmt(imovel.valor)}</p>
+          <p style={{fontSize:11,color:G.textDim}}>{imovel.finalidade==="Arrendamento"?"por mês":imovel.area>0?`${Math.round(imovel.valor/imovel.area).toLocaleString("pt-PT")} €/m²`:""}</p>
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+        <span className={`tag badge-${imovel.status.toLowerCase()}`}>{imovel.status}</span>
+        <span className={`tag badge-${imovel.finalidade.toLowerCase().replace("ç","c").replace("ã","a")}`}>{imovel.finalidade}</span>
+        <span className="tag" style={{background:`${G.textDim}20`,color:G.textMuted}}>{imovel.tipo}</span>
+      </div>
+
+      {/* Características */}
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr",gap:10,marginBottom:18}}>
+        {[["Área",imovel.area?`${imovel.area} m²`:"—"],["Quartos",imovel.quartos||"—"],["WC",imovel.casasBanho||"—"],["Tipo",imovel.tipo],["Estado",imovel.status],["Finalidade",imovel.finalidade]].map(([l,v])=>(
+          <div key={l} style={{background:G.surface2,borderRadius:8,padding:"10px 14px"}}>
+            <p style={{fontSize:10,color:G.textDim,marginBottom:3,textTransform:"uppercase",letterSpacing:".3px"}}>{l}</p>
+            <p style={{fontSize:14,fontWeight:500}}>{v}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Localização detalhada */}
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:".3px"}}>Localização</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[["Distrito",imovel.distrito||"—"],["Concelho",imovel.concelho||"—"],["Freguesia",imovel.freguesia||"—"],["Zona/Bairro",imovel.bairro||"—"]].map(([l,v])=>(
+            <div key={l}><p style={{fontSize:10,color:G.textDim}}>{l}</p><p style={{fontSize:13,fontWeight:500}}>{v}</p></div>
+          ))}
+        </div>
+      </div>
+
+      {/* Descrição */}
+      {imovel.descricao&&<div style={{marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Descrição</p>
+        <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7}}>{imovel.descricao}</p>
+      </div>}
+
+      {/* Ações */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
+        <button className="btn-gold" onClick={onMkt} style={{flex:mob?"1 1 100%":1}}><Ic n="spark" s={14} c="#0E0E0F"/>Avaliar com IA</button>
+        <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
+        <button className="btn-ghost" onClick={()=>{if(confirm("Eliminar este imóvel?"))onDelete();}} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+      </div>
+    </Modal>
+  );
+};
+
 const Imoveis=({imoveis,setImoveis,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
@@ -4235,8 +4324,9 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
   const [form,setForm]=useState(emptyIm);
   const [editId,setEditId]=useState(null);
   const [mktIm,setMktIm]=useState(null);
+  const [detailIm,setDetailIm]=useState(null);
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
-  const save=()=>{if(!form.titulo)return;const d={...form,valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos)};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
+  const save=()=>{if(!form.titulo)return;const d={...form,valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
   const onImport=(data)=>{setImoveis(p=>[...p,{...data,id:Date.now(),valor:Number(data.valor),area:Number(data.area),quartos:Number(data.quartos)||0}]);setImportMod(false);};
   const fotos=["🏠","🏡","🏢","🏙️","🌿","🏗️","🏪","🏨"];
   return(
@@ -4261,13 +4351,19 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
           <span>Imóvel</span><span>Tipo</span><span>Finalidade</span><span>Estado</span><span>Valor</span><span>Ações</span>
         </div>
         {filtered.map(im=>(
-          <div key={im.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 1fr 1fr 1.2fr 110px",borderBottom:`1px solid ${G.border}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:24}}>{im.foto}</span><div><p style={{fontSize:14,fontWeight:500}}>{im.titulo}</p><p style={{fontSize:12,color:G.textMuted}}>{im.bairro} · {im.area}m²</p></div></div>
+          <div key={im.id} className="table-row" style={{gridTemplateColumns:"2fr 1fr 1fr 1fr 1.2fr 110px",borderBottom:`1px solid ${G.border}`,cursor:"pointer"}} onClick={()=>setDetailIm(im)}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              {im.fotos&&im.fotos.length>0
+                ? <img src={im.fotos[0]} alt="" style={{width:46,height:46,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                : <span style={{fontSize:24,width:46,textAlign:"center"}}>{im.foto}</span>}
+              <div><p style={{fontSize:14,fontWeight:500}}>{im.titulo}</p><p style={{fontSize:12,color:G.textMuted}}>{im.bairro} · {im.area}m²{im.fotos&&im.fotos.length>0?` · 📷 ${im.fotos.length}`:""}</p></div>
+            </div>
             <span style={{fontSize:13,color:G.textMuted}}>{im.tipo}</span>
             <span className={`tag badge-${im.finalidade.toLowerCase().replace("ç","c").replace("ã","a")}`}>{im.finalidade}</span>
             <span className={`tag badge-${im.status.toLowerCase()}`}>{im.status}</span>
             <span style={{fontSize:13,color:G.gold1,fontWeight:500}}>{im.finalidade==="Arrendamento"?`${fmtFull(im.valor)}/mês`:fmt(im.valor)}</span>
-            <div style={{display:"flex",gap:3}}>
+            <div style={{display:"flex",gap:3}} onClick={e=>e.stopPropagation()}>
+              <button title="Ver ficha" onClick={()=>setDetailIm(im)} style={{background:`${G.gold1}20`,border:"none",borderRadius:6,padding:"6px 8px",cursor:"pointer",display:"flex"}}><Ic n="eye" s={14} c={G.gold1}/></button>
               <button title="Avaliar com IA" onClick={()=>setMktIm(im)} style={{background:`${G.purple}20`,border:"none",borderRadius:6,padding:"6px 8px",cursor:"pointer",display:"flex"}}><Ic n="spark" s={14} c={G.purple}/></button>
               <button onClick={()=>{setForm(im);setEditId(im.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"6px 7px",display:"flex"}}><Ic n="edit" s={14} c={G.textMuted}/></button>
               <button onClick={()=>setImoveis(p=>p.filter(i=>i.id!==im.id))} style={{background:"none",border:"none",cursor:"pointer",padding:"6px 7px",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
@@ -4280,11 +4376,13 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
       {mob&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
         {filtered.map(im=>(
           <div key={im.id} className="card imovel-card" style={{padding:"14px"}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-              <span style={{fontSize:28,flexShrink:0}}>{im.foto}</span>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12,cursor:"pointer"}} onClick={()=>setDetailIm(im)}>
+              {im.fotos&&im.fotos.length>0
+                ? <img src={im.fotos[0]} alt="" style={{width:64,height:64,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
+                : <span style={{fontSize:28,flexShrink:0,width:64,textAlign:"center"}}>{im.foto}</span>}
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:15,fontWeight:600,marginBottom:3}}>{im.titulo}</p>
-                <p style={{fontSize:12,color:G.textMuted,marginBottom:8}}>{im.bairro}, {im.cidade} · {im.area}m² · {im.tipo}</p>
+                <p style={{fontSize:12,color:G.textMuted,marginBottom:8}}>{im.bairro}, {im.cidade} · {im.area}m² · {im.tipo}{im.fotos&&im.fotos.length>0?` · 📷 ${im.fotos.length}`:""}</p>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span className={`tag badge-${im.status.toLowerCase()}`}>{im.status}</span>
                   <span className={`tag badge-${im.finalidade.toLowerCase().replace("ç","c").replace("ã","a")}`}>{im.finalidade}</span>
@@ -4293,8 +4391,9 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:12,paddingTop:10,borderTop:`1px solid ${G.border}`}}>
-              <button onClick={()=>setMktIm(im)} style={{flex:1,background:`${G.purple}20`,border:`1px solid ${G.purple}40`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.purple,fontFamily:"'DM Sans',sans-serif"}}><Ic n="spark" s={13} c={G.purple}/>Avaliar IA</button>
-              <button onClick={()=>{setForm(im);setEditId(im.id);setMod(true);}} style={{flex:1,background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.textMuted,fontFamily:"'DM Sans',sans-serif"}}><Ic n="edit" s={13} c={G.textMuted}/>Editar</button>
+              <button onClick={()=>setDetailIm(im)} style={{flex:1,background:`${G.gold1}20`,border:`1px solid ${G.gold1}40`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.gold1,fontFamily:"'DM Sans',sans-serif"}}><Ic n="eye" s={13} c={G.gold1}/>Ver</button>
+              <button onClick={()=>setMktIm(im)} style={{flex:1,background:`${G.purple}20`,border:`1px solid ${G.purple}40`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.purple,fontFamily:"'DM Sans',sans-serif"}}><Ic n="spark" s={13} c={G.purple}/>IA</button>
+              <button onClick={()=>{setForm(im);setEditId(im.id);setMod(true);}} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px 12px",cursor:"pointer",display:"flex"}}><Ic n="edit" s={15} c={G.textMuted}/></button>
               <button onClick={()=>setImoveis(p=>p.filter(i=>i.id!==im.id))} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px 12px",cursor:"pointer",display:"flex"}}><Ic n="trash" s={15} c={G.red}/></button>
             </div>
           </div>
@@ -4312,6 +4411,32 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
           <Field label="Área (m²)"><input type="number" value={form.area} onChange={e=>setForm(p=>({...p,area:e.target.value}))} placeholder="0"/></Field>
           <Field label="Quartos"><input type="number" value={form.quartos} onChange={e=>setForm(p=>({...p,quartos:e.target.value}))} placeholder="0"/></Field>
           <div style={{gridColumn:"1/-1"}}>
+            <p style={{fontSize:12,color:G.textMuted,marginBottom:10,textTransform:"uppercase",letterSpacing:".3px"}}>Fotografias</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+              {(form.fotos||[]).map((src,idx)=>(
+                <div key={idx} style={{position:"relative",width:80,height:80}}>
+                  <img src={src} alt="" style={{width:80,height:80,borderRadius:8,objectFit:"cover"}}/>
+                  <button onClick={()=>setForm(p=>({...p,fotos:p.fotos.filter((_,i)=>i!==idx)}))} style={{position:"absolute",top:-6,right:-6,width:22,height:22,borderRadius:"50%",background:G.red,border:"2px solid "+G.surface1,color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+                </div>
+              ))}
+              <label style={{width:80,height:80,borderRadius:8,border:`2px dashed ${G.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",color:G.textMuted,gap:4}}>
+                <Ic n="plus" s={18} c={G.textMuted}/>
+                <span style={{fontSize:10}}>Adicionar</span>
+                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
+                  const files=Array.from(e.target.files||[]);
+                  files.forEach(file=>{
+                    if(file.size>3*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`);return;}
+                    const reader=new FileReader();
+                    reader.onload=ev=>setForm(p=>({...p,fotos:[...(p.fotos||[]),ev.target.result]}));
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value="";
+                }}/>
+              </label>
+            </div>
+            <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>As fotos ficam guardadas durante a sessão. Máx 3MB cada. A primeira é a foto de capa.</p>
+          </div>
+          <div style={{gridColumn:"1/-1"}}>
             <p style={{fontSize:12,color:G.textMuted,marginBottom:10,textTransform:"uppercase",letterSpacing:".3px"}}>Localização</p>
             <LocSelector
               distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia}
@@ -4319,11 +4444,13 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
             />
             <Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e=>setForm(p=>({...p,bairro:e.target.value}))} placeholder="Ex: Chiado, Beira Mar..."/></Field>
           </div>
+          <div style={{gridColumn:"1/-1"}}><Field label="Descrição"><textarea value={form.descricao||""} onChange={e=>setForm(p=>({...p,descricao:e.target.value}))} placeholder="Descrição do imóvel, características principais..." rows={3} style={{resize:"vertical"}}/></Field></div>
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}><button className="btn-ghost" onClick={()=>setMod(false)}>Cancelar</button><button className="btn-gold" onClick={save}>{editId?"Guardar":"Cadastrar"}</button></div>
       </Modal>}
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onDelete={()=>{setImoveis(p=>p.filter(i=>i.id!==detailIm.id));setDetailIm(null);}} mob={mob}/>}
     </div>
   );
 };
