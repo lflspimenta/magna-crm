@@ -2432,6 +2432,7 @@ const Ic = ({n,s=16,c="currentColor"}) => {
     mail:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
     phone:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.19 2.22 2 2 0 012.17.04h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.16 6.16l1.03-.55a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>,
     eye:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+    share:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
     eyeoff:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
     user:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
     info:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
@@ -4229,6 +4230,89 @@ Regras:
 
 
 // ── FICHA DETALHADA DO IMÓVEL ─────────────────────────────────
+// Gera PDF de apresentação do imóvel
+const gerarFichaPDF=(imovel)=>{
+  const fotos=imovel.fotos||[];
+  const loc=[imovel.freguesia,imovel.concelho,imovel.distrito].filter(Boolean).join(", ")||imovel.bairro||"—";
+  const precoStr=imovel.finalidade==="Arrendamento"?`${fmtFull(imovel.valor)} / mês`:fmtFull(imovel.valor);
+  const m2=imovel.area>0?`${Math.round(imovel.valor/imovel.area).toLocaleString("pt-PT")} €/m²`:"";
+  const win=window.open("","_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Ficha — ${imovel.titulo}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#1a1a1a;background:#fff}
+.page{max-width:800px;margin:0 auto;padding:50px}
+.header{background:linear-gradient(135deg,#1a1a1a,#2d2408);color:#fff;padding:36px 50px;margin:-50px -50px 36px;border-bottom:3px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#C9A84C;letter-spacing:2px}
+.logo-sub{font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+.title{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;margin:18px 0 4px;color:#fff}
+.meta{font-size:13px;color:#aaa}
+.price{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:700;color:#8B6914;margin:8px 0 2px}
+.price-sub{font-size:12px;color:#888;margin-bottom:20px}
+.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:24px}
+.gallery img{width:100%;height:200px;object-fit:cover;border-radius:8px}
+.gallery img.cover{grid-column:1/-1;height:320px}
+.tags{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.tag{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:#f5efe0;color:#8B6914}
+h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#8B6914;border-bottom:1.5px solid #C9A84C;padding-bottom:8px;margin:24px 0 16px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.box{background:#f9f7f1;border-radius:8px;padding:12px 16px}
+.box .l{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.box .v{font-size:15px;font-weight:500;color:#1a1a1a}
+.desc{font-size:14px;line-height:1.8;color:#444}
+.footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;text-align:center;font-size:11px;color:#999}
+@media print{.no-print{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+</style></head><body>
+<div class="page">
+  <div class="header">
+    <div class="logo-name">MAGNA</div><div class="logo-sub">Group Real Estate</div>
+    <div class="title">${imovel.titulo}</div>
+    <div class="meta">${loc}</div>
+  </div>
+  <div class="price">${precoStr}</div>
+  <div class="price-sub">${m2}</div>
+  ${fotos.length>0?`<div class="gallery">${fotos.map((src,i)=>`<img src="${src}" class="${i===0&&fotos.length>1?'cover':''}"/>`).join("")}</div>`:""}
+  <div class="tags"><span class="tag">${imovel.status}</span><span class="tag">${imovel.finalidade}</span><span class="tag">${imovel.tipo}</span></div>
+  <h2>Características</h2>
+  <div class="grid">
+    <div class="box"><div class="l">Área</div><div class="v">${imovel.area?imovel.area+" m²":"—"}</div></div>
+    <div class="box"><div class="l">Quartos</div><div class="v">${imovel.quartos||"—"}</div></div>
+    <div class="box"><div class="l">Casas de Banho</div><div class="v">${imovel.casasBanho||"—"}</div></div>
+    <div class="box"><div class="l">Tipo</div><div class="v">${imovel.tipo}</div></div>
+    <div class="box"><div class="l">Estado</div><div class="v">${imovel.status}</div></div>
+    <div class="box"><div class="l">Finalidade</div><div class="v">${imovel.finalidade}</div></div>
+  </div>
+  <h2>Localização</h2>
+  <div class="grid">
+    <div class="box"><div class="l">Distrito</div><div class="v">${imovel.distrito||"—"}</div></div>
+    <div class="box"><div class="l">Concelho</div><div class="v">${imovel.concelho||"—"}</div></div>
+    <div class="box"><div class="l">Freguesia</div><div class="v">${imovel.freguesia||"—"}</div></div>
+  </div>
+  ${imovel.descricao?`<h2>Descrição</h2><p class="desc">${imovel.descricao}</p>`:""}
+  <div class="footer">Magna Group Real Estate · Ficha gerada em ${new Date().toLocaleDateString("pt-PT")}</div>
+</div>
+<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+</body></html>`);
+  win.document.close();
+};
+
+// Partilha nativa (telemóvel) com fallback para copiar (computador)
+const partilharImovel=async(imovel)=>{
+  const loc=[imovel.freguesia,imovel.concelho,imovel.distrito].filter(Boolean).join(", ")||imovel.bairro||"";
+  const precoStr=imovel.finalidade==="Arrendamento"?`${fmtFull(imovel.valor)}/mês`:fmtFull(imovel.valor);
+  const texto=`🏠 ${imovel.titulo}\n📍 ${loc}\n💶 ${precoStr}\n📐 ${imovel.area||"—"} m² · ${imovel.tipo} · ${imovel.quartos||0} quartos\n${imovel.descricao?"\n"+imovel.descricao.slice(0,200)+"\n":""}\nMagna Group Real Estate`;
+  if(navigator.share){
+    try{ await navigator.share({title:imovel.titulo,text:texto}); }
+    catch(e){ /* utilizador cancelou */ }
+  }else{
+    try{ await navigator.clipboard.writeText(texto); alert("✓ Resumo do imóvel copiado para a área de transferência!"); }
+    catch(e){ alert("Não foi possível partilhar neste dispositivo."); }
+  }
+};
+
 const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
@@ -4310,6 +4394,8 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
       {/* Ações */}
       <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
         <button className="btn-gold" onClick={onMkt} style={{flex:mob?"1 1 100%":1}}><Ic n="spark" s={14} c="#0E0E0F"/>Avaliar com IA</button>
+        <button className="btn-ghost" onClick={()=>gerarFichaPDF(imovel)} style={{flex:mob?1:"none"}}><Ic n="pdf" s={14} c={G.gold1}/>Gerar PDF</button>
+        <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
         <button className="btn-ghost" onClick={()=>{if(confirm("Eliminar este imóvel?"))onDelete();}} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
