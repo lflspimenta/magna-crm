@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores } from "./db.js";
 
 // ── Responsive hook ───────────────────────────────────────────
 const useIsMobile = () => {
@@ -2474,8 +2475,16 @@ const LoginScreen = ({onLogin}) => {
 
   const tryLogin = async () => {
     setLoad(true); setError("");
-    await new Promise(r=>setTimeout(r,800));
-    const u = getUsers().find(u=>u.email===email.trim()&&u.password===pass);
+    await new Promise(r=>setTimeout(r,400));
+    let u = null;
+    if (dbReady) {
+      // Tenta autenticar via Supabase
+      try { u = await dbUtilizadores.findByLogin(email.trim(), pass); } catch (e) { console.error(e); }
+    }
+    if (!u) {
+      // Fallback para lista local (sem BD configurada ou utilizador não encontrado)
+      u = getUsers().find(u=>u.email===email.trim()&&u.password===pass);
+    }
     const isNetlify = window.location.hostname.includes("netlify.app") ||
                       (window.location.hostname !== "localhost" && !window.location.hostname.includes("claude.ai"));
     if (!u) { setError("E-mail ou palavra-passe incorretos."); setLoad(false); return; }
@@ -3278,6 +3287,40 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
   const [filtro, setFiltro]       = useState("Todos");
   const [importado, setImportado] = useState(false);
 
+  // Carregar angariações da BD
+  useEffect(() => {
+    if (!dbReady) return;
+    (async () => {
+      try { const data = await dbAngariacoes.list(); setLista(data); }
+      catch (e) { console.error("load angariacoes:", e); }
+    })();
+  }, []);
+
+  // Helper: guardar uma angariação na BD
+  const saveToDB = async (item) => {
+    if (!dbReady) return item;
+    try {
+      if (item.id && typeof item.id === "number" && item.id < 1e12) {
+        // ID curto = veio da BD, é update
+        return await dbAngariacoes.update(item.id, item);
+      } else {
+        // ID grande (Date.now) = novo, é insert
+        const { id: tempId, ...rest } = item;
+        return await dbAngariacoes.insert(rest);
+      }
+    } catch (e) {
+      console.error("save angariacao:", e);
+      alert("Erro ao guardar: " + e.message);
+      return item;
+    }
+  };
+
+  const removeFromDB = async (id) => {
+    if (!dbReady) return;
+    try { await dbAngariacoes.remove(id); }
+    catch (e) { console.error("remove angariacao:", e); alert("Erro: " + e.message); }
+  };
+
   const importarParaImoveis = () => {
     const fotoMap = {"Apartamento":"🏙️","Moradia":"🏡","Terreno":"🌿","Comercial":"🏢","Escritório":"🏢","Garagem":"🏗️"};
     const novoImovel = {
@@ -3311,21 +3354,26 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
   const nova = () => { setForm(emptyAng); setEditId(null); setSigProp(null); setSigAgente(null); setImportado(false); setStep("form"); };
   const editar = (a) => { setForm(a); setEditId(a.id); setSigProp(a.sigProp||null); setSigAgente(a.sigAgente||null); setStep("form"); };
 
-  const guardar = (irAssinar=false) => {
+  const guardar = async (irAssinar=false) => {
     if (!form.propNome || !form.distrito || !form.valor) return;
-    const item = {...form, id: editId||Date.now(), sigProp, sigAgente, dataModif: new Date().toISOString()};
-    if (!editId) setLista(p=>[item,...p]);
-    else setLista(p=>p.map(a=>a.id===editId?item:a));
-    setEditId(item.id);
-    setForm(item);
+    const isNew = !editId;
+    const item = {...form, sigProp, sigAgente, dataModif: new Date().toISOString()};
+    if (!isNew) item.id = editId;
+    // Guardar na BD
+    const saved = await saveToDB(item);
+    if (isNew) setLista(p=>[saved, ...p]);
+    else setLista(p=>p.map(a=>a.id===editId?saved:a));
+    setEditId(saved.id);
+    setForm(saved);
     if (irAssinar) setStep("assinar");
     else setStep("lista");
   };
 
-  const concluirAssinatura = () => {
-    const item = {...form, id: editId||Date.now(), sigProp, sigAgente, estado:"Assinado", dataModif: new Date().toISOString()};
-    setLista(p=>p.map(a=>a.id===item.id?item:a));
-    setForm(item);
+  const concluirAssinatura = async () => {
+    const item = {...form, id: editId, sigProp, sigAgente, estado:"Assinado", dataModif: new Date().toISOString()};
+    const saved = await saveToDB(item);
+    setLista(p=>p.map(a=>a.id===item.id?saved:a));
+    setForm(saved);
     setStep("preview");
   };
 
@@ -3383,7 +3431,7 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
               <button onClick={()=>gerarPDFAngariacao(a,a.sigProp,a.sigAgente,user)} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:12,color:G.textMuted,fontFamily:"'DM Sans',sans-serif"}}>
                 <Ic n="pdf" s={13} c={G.textMuted}/>{!mob&&"PDF"}
               </button>
-              <button onClick={()=>setLista(p=>p.filter(x=>x.id!==a.id))} style={{background:"none",border:`1px solid ${G.border}`,borderRadius:7,padding:"8px 10px",cursor:"pointer",display:"flex"}}>
+              <button onClick={async()=>{if(!confirm("Eliminar esta angariação?"))return; await removeFromDB(a.id); setLista(p=>p.filter(x=>x.id!==a.id));}} style={{background:"none",border:`1px solid ${G.border}`,borderRadius:7,padding:"8px 10px",cursor:"pointer",display:"flex"}}>
                 <Ic n="trash" s={13} c={G.red}/>
               </button>
             </div>
@@ -3604,27 +3652,50 @@ const GestaoUtilizadores = ({currentUser}) => {
 
   const isAdmin = currentUser.role === "admin";
 
-  const save = () => {
+  // Carregar utilizadores da BD
+  useEffect(() => {
+    if (!dbReady) return;
+    (async () => {
+      try { const data = await dbUtilizadores.list(); if (data.length>0) setLista(data); }
+      catch (e) { console.error("load utilizadores:", e); }
+    })();
+  }, []);
+
+  const save = async () => {
     setErro("");
     if (!form.nome || !form.email || (!editId && !form.password)) { setErro("Preenche todos os campos obrigatórios."); return; }
     if (!form.email.includes("@")) { setErro("E-mail inválido."); return; }
     const avatar = form.avatar || form.nome.charAt(0).toUpperCase();
-    if (editId) {
-      const updated = lista.map(u => u.id === editId ? { ...u, ...form, avatar, password: form.password || u.password } : u);
-      setLista(updated); saveUsers(updated);
-    } else {
-      if (lista.find(u => u.email === form.email)) { setErro("Já existe um utilizador com este e-mail."); return; }
-      const novo = { ...form, avatar, id: Date.now() };
-      const updated = [...lista, novo];
-      setLista(updated); saveUsers(updated);
-    }
-    setMod(false); setForm(emptyU); setEditId(null); setErro("");
+    try {
+      if (editId) {
+        const existing = lista.find(u => u.id === editId);
+        const payload = { ...existing, ...form, avatar, password: form.password || existing.password };
+        if (dbReady) await dbUtilizadores.update(editId, payload);
+        const updated = lista.map(u => u.id === editId ? payload : u);
+        setLista(updated); saveUsers(updated);
+      } else {
+        if (lista.find(u => u.email === form.email)) { setErro("Já existe um utilizador com este e-mail."); return; }
+        let novo = { ...form, avatar };
+        if (dbReady) {
+          const saved = await dbUtilizadores.insert(novo);
+          if (saved) novo = saved;
+          else novo.id = Date.now();
+        } else { novo.id = Date.now(); }
+        const updated = [...lista, novo];
+        setLista(updated); saveUsers(updated);
+      }
+      setMod(false); setForm(emptyU); setEditId(null); setErro("");
+    } catch (e) { setErro("Erro ao guardar: " + e.message); }
   };
 
-  const del = (id) => {
+  const del = async (id) => {
     if (id === currentUser.id) { alert("Não podes eliminar o teu próprio utilizador."); return; }
-    const updated = lista.filter(u => u.id !== id);
-    setLista(updated); saveUsers(updated);
+    if (!confirm("Eliminar este utilizador?")) return;
+    try {
+      if (dbReady) await dbUtilizadores.remove(id);
+      const updated = lista.filter(u => u.id !== id);
+      setLista(updated); saveUsers(updated);
+    } catch (e) { alert("Erro: " + e.message); }
   };
 
   const edit = (u) => { setForm({...u, password:""}); setEditId(u.id); setShowPw(false); setMod(true); setErro(""); };
@@ -4939,10 +5010,76 @@ const Dashboard=({imoveis,clientes,tarefas,user,setPage,mob})=>{
 export default function App() {
   const [user,setUser]         = useState(null);
   const [page,setPage]         = useState("dashboard");
-  const [imoveis,setImoveis]   = useState(initIm);
-  const [clientes,setClientes] = useState(initCl);
-  const [tarefas,setTarefas]   = useState(initT);
+  const [imoveis,setImoveis]   = useState([]);
+  const [clientes,setClientes] = useState([]);
+  const [tarefas,setTarefas]   = useState([]);
+  const [loading,setLoading]   = useState(false);
   const mob                    = useIsMobile();
+
+  // Wrapper de estado para os dados — escreve na BD e actualiza localmente
+  const makeDBWrapper = (collection, db, setLocal) => {
+    return async (updater) => {
+      // updater pode ser uma função (prev => newArr) — calcular o novo estado
+      let oldList, newList;
+      setLocal(prev => {
+        oldList = prev;
+        newList = typeof updater === "function" ? updater(prev) : updater;
+        return newList;
+      });
+      if (!dbReady) return; // sem BD, fica só local
+      // Detectar diferenças e enviar para a BD
+      // 1) Item novo: existe no novo mas não no antigo (ou tem id temporário grande)
+      const oldIds = new Set(oldList.map(x => x.id));
+      const newIds = new Set(newList.map(x => x.id));
+      const added = newList.filter(x => !oldIds.has(x.id));
+      const removed = oldList.filter(x => !newIds.has(x.id));
+      const updated = newList.filter(x => {
+        if (!oldIds.has(x.id)) return false;
+        const oldItem = oldList.find(o => o.id === x.id);
+        return JSON.stringify(oldItem) !== JSON.stringify(x);
+      });
+      try {
+        for (const item of added) {
+          const saved = await db.insert(item);
+          if (saved && saved.id !== item.id) {
+            // Trocar o id temporário pelo id da BD
+            setLocal(prev => prev.map(x => x.id === item.id ? { ...saved } : x));
+          }
+        }
+        for (const item of updated) await db.update(item.id, item);
+        for (const item of removed) await db.remove(item.id);
+      } catch (e) {
+        console.error("DB sync error:", e.message);
+        alert("Erro ao guardar na base de dados: " + e.message);
+      }
+    };
+  };
+
+  const wImoveis = makeDBWrapper("imoveis", dbImoveis, setImoveis);
+  const wClientes = makeDBWrapper("clientes", dbClientes, setClientes);
+  const wTarefas = makeDBWrapper("tarefas", dbTarefas, setTarefas);
+
+  // Carregar dados da BD quando o utilizador entrar
+  useEffect(() => {
+    if (!user || !dbReady) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const [im, cl, ta] = await Promise.all([
+          dbImoveis.list(),
+          dbClientes.list(),
+          dbTarefas.list(),
+        ]);
+        setImoveis(im);
+        setClientes(cl);
+        setTarefas(ta);
+      } catch (e) {
+        console.error("Erro ao carregar dados:", e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user]);
 
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
@@ -4992,10 +5129,10 @@ export default function App() {
           </aside>
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
-            {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={setImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={setImoveis} mob={false}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={setClientes} mob={false}/>}
-            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={setTarefas} clientes={clientes} mob={false}/>}
+            {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={false}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
+            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
@@ -5019,10 +5156,10 @@ export default function App() {
           {/* Main scrollable content */}
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
-            {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={setImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={setImoveis} mob={true}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={setClientes} mob={true}/>}
-            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={setTarefas} clientes={clientes} mob={true}/>}
+            {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={true}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
+            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
