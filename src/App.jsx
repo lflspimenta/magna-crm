@@ -4218,7 +4218,7 @@ const initT = [
 ];
 
 // ── IMÓVEIS ───────────────────────────────────────────────────
-const emptyIm={titulo:"",tipo:"Apartamento",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:"",fotos:[]};
+const emptyIm={titulo:"",tipo:"Apartamento",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:"",fotos:[],destaque:false};
 
 // ── Import from Idealista / Imovirtual ────────────────────────
 const ImportModal = ({onClose, onImport}) => {
@@ -4808,7 +4808,8 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
               distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia}
               onChange={({distrito,concelho,freguesia})=>setForm(p=>({...p,distrito,concelho,cidade:concelho,bairro:freguesia||concelho,freguesia}))}
             />
-            <Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e=>setForm(p=>({...p,bairro:e.target.value}))} placeholder="Ex: Chiado, Beira Mar..."/></Field>
+           <div style={{gridColumn:"1/-1"}}><label style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",padding:"12px 14px",background:form.destaque?`${G.gold1}15`:G.surface2,borderRadius:8,border:`1px solid ${form.destaque?G.gold1:G.border}`,transition:"all .2s"}}><div onClick={()=>setForm(p=>({...p,destaque:!p.destaque}))} style={{width:44,height:24,borderRadius:12,background:form.destaque?G.gold1:G.border,position:"relative",transition:"background .2s",cursor:"pointer",flexShrink:0}}><div style={{position:"absolute",top:2,left:form.destaque?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.3)"}}/></div><div><p style={{fontSize:13,fontWeight:500,color:form.destaque?G.gold1:G.text}}>Imóvel em Destaque</p><p style={{fontSize:11,color:G.textDim,marginTop:2}}>Aparece na homepage do site público</p></div></label></div>
+<Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e=>setForm(p=>({...p,bairro:e.target.value}))} placeholder="Ex: Chiado, Beira Mar..."/></Field>
           </div>
           <div style={{gridColumn:"1/-1"}}><Field label="Descrição"><textarea value={form.descricao||""} onChange={e=>setForm(p=>({...p,descricao:e.target.value}))} placeholder="Descrição do imóvel, características principais..." rows={3} style={{resize:"vertical"}}/></Field></div>
         </div>
