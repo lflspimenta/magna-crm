@@ -5027,13 +5027,15 @@ export default function App() {
         return newList;
       });
       if (!dbReady) return; // sem BD, fica só local
-      // Detectar diferenças e enviar para a BD
-      // 1) Item novo: existe no novo mas não no antigo (ou tem id temporário grande)
+      // Considera "id da BD" aqueles que são números pequenos (auto-incrementados pela BD)
+      // IDs temporários gerados por Date.now() são > 1e12
+      const isDBId = (id) => typeof id === "number" && id < 1e12 && id > 0;
       const oldIds = new Set(oldList.map(x => x.id));
       const newIds = new Set(newList.map(x => x.id));
       const added = newList.filter(x => !oldIds.has(x.id));
-      const removed = oldList.filter(x => !newIds.has(x.id));
+      const removed = oldList.filter(x => !newIds.has(x.id) && isDBId(x.id));
       const updated = newList.filter(x => {
+        if (!isDBId(x.id)) return false; // só faz update se já tem id da BD
         if (!oldIds.has(x.id)) return false;
         const oldItem = oldList.find(o => o.id === x.id);
         return JSON.stringify(oldItem) !== JSON.stringify(x);
