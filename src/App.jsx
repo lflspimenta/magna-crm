@@ -3277,6 +3277,96 @@ ${ang.tipoMandato==="Exclusivo"?`<div class="clausula"><div class="clausula-num"
 };
 
 // Main Angariações component
+const AngariacaoDetalhe = ({ang,user,onClose,onEdit,onDelete,onImportar,onPDF,mob}) => {
+  const a = ang;
+  const estadoCor = { "Rascunho":G.textDim, "Pendente":G.blue, "Assinado":G.green, "Cancelado":G.red };
+  const loc = [a.freguesia,a.concelho,a.distrito].filter(Boolean).join(", ") || "—";
+  const podeEditar = a.estado !== "Assinado";
+  const tipoIcons = {"Apartamento":"🏙️","Moradia":"🏡","Terreno":"🌿","Comercial":"🏢","Escritório":"🏢","Garagem":"🏗️"};
+  return (
+    <Modal title="" onClose={onClose}>
+      {/* Cabeçalho */}
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${G.border}`}}>
+        <div style={{width:54,height:54,borderRadius:12,background:`${G.gold1}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>{tipoIcons[a.tipo]||"📋"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?20:24,fontWeight:600,marginBottom:4}}>{a.propNome}</h2>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,padding:"2px 10px",borderRadius:10,background:`${estadoCor[a.estado]||G.textDim}20`,color:estadoCor[a.estado]||G.textDim,fontWeight:600}}>{a.estado}</span>
+            <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{a.tipoMandato}</span>
+            <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{a.tipo}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Valor + Comissão destacados */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+        <div style={{background:`linear-gradient(135deg,${G.gold1}10,${G.goldDark}05)`,border:`1px solid ${G.gold1}30`,borderRadius:10,padding:"14px 16px"}}>
+          <p style={{fontSize:10,color:G.textDim,marginBottom:3,textTransform:"uppercase",letterSpacing:".3px"}}>Valor</p>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?20:24,fontWeight:700,color:G.gold1}}>{fmtFull(a.valor)}</p>
+          <p style={{fontSize:11,color:G.textDim}}>{a.finalidade==="Arrendamento"?"por mês":a.finalidade}</p>
+        </div>
+        <div style={{background:G.surface2,borderRadius:10,padding:"14px 16px"}}>
+          <p style={{fontSize:10,color:G.textDim,marginBottom:3,textTransform:"uppercase",letterSpacing:".3px"}}>Comissão</p>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?20:24,fontWeight:700,color:G.green}}>{a.comissao}%</p>
+          <p style={{fontSize:11,color:G.textDim}}>+ IVA · {a.prazo} meses</p>
+        </div>
+      </div>
+
+      {/* Proprietário */}
+      <p style={{fontSize:11,color:G.gold1,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px",fontWeight:500}}>👤 Proprietário</p>
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:10}}>
+        {[["NIF",a.propNif],["Telefone",a.propTelefone],["E-mail",a.propEmail],["Morada",a.propMorada]].map(([l,v])=>(
+          <div key={l}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>{l}</p><p style={{fontSize:13,color:G.text,wordBreak:"break-word"}}>{v||"—"}</p></div>
+        ))}
+      </div>
+
+      {/* Imóvel */}
+      <p style={{fontSize:11,color:G.gold1,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px",fontWeight:500}}>🏠 Imóvel</p>
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+        <p style={{fontSize:13,color:G.text,marginBottom:8}}>📍 {loc}</p>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:8}}>
+          {[["Área",a.area?`${a.area} m²`:"—"],["Quartos",a.quartos||"—"],["WC",a.casasBanho||"—"],["Tipo",a.tipo]].map(([l,v])=>(
+            <div key={l}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>{l}</p><p style={{fontSize:13,fontWeight:500}}>{v}</p></div>
+          ))}
+        </div>
+        {a.descricao && <p style={{fontSize:12,color:G.textMuted,marginTop:10,paddingTop:10,borderTop:`1px solid ${G.border}`,lineHeight:1.6}}>{a.descricao}</p>}
+      </div>
+
+      {/* Datas */}
+      <p style={{fontSize:11,color:G.gold1,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px",fontWeight:500}}>📅 Mandato</p>
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Início</p><p style={{fontSize:13,fontWeight:500}}>{a.dataInicio?new Date(a.dataInicio).toLocaleDateString("pt-PT"):"—"}</p></div>
+        <div><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Duração</p><p style={{fontSize:13,fontWeight:500}}>{a.prazo} meses</p></div>
+      </div>
+
+      {/* Assinaturas se assinada */}
+      {a.estado === "Assinado" && (a.sigProp || a.sigAgente) && (
+        <>
+          <p style={{fontSize:11,color:G.green,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px",fontWeight:500}}>✓ Assinaturas</p>
+          <div style={{background:`${G.green}08`,border:`1px solid ${G.green}30`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div style={{textAlign:"center"}}>
+              <p style={{fontSize:10,color:G.textDim,marginBottom:4}}>Proprietário</p>
+              {a.sigProp ? <img src={a.sigProp} alt="" style={{maxHeight:50,maxWidth:"100%",filter:"invert(1)"}}/> : <p style={{fontSize:12,color:G.textDim}}>—</p>}
+            </div>
+            <div style={{textAlign:"center"}}>
+              <p style={{fontSize:10,color:G.textDim,marginBottom:4}}>Agente</p>
+              {a.sigAgente ? <img src={a.sigAgente} alt="" style={{maxHeight:50,maxWidth:"100%",filter:"invert(1)"}}/> : <p style={{fontSize:12,color:G.textDim}}>—</p>}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Ações */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
+        <button className="btn-gold" onClick={onPDF} style={{flex:mob?"1 1 100%":1}}><Ic n="pdf" s={14} c="#0E0E0F"/>Gerar PDF</button>
+        {a.estado === "Assinado" && onImportar && <button className="btn-ghost" onClick={onImportar} style={{flex:mob?1:"none",borderColor:`${G.purple}40`,color:G.purple}}>🏠 Importar para Imóveis</button>}
+        {podeEditar && <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>}
+        <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+      </div>
+    </Modal>
+  );
+};
+
 const Angariações = ({user, mob, setImoveis, setPage}) => {
   const [lista, setLista]         = useState([]);
   const [step, setStep]           = useState("lista"); // lista | form | assinar | preview
@@ -3286,6 +3376,7 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
   const [sigAgente, setSigAgente] = useState(null);
   const [filtro, setFiltro]       = useState("Todos");
   const [importado, setImportado] = useState(false);
+  const [detailAng, setDetailAng] = useState(null);
 
   // Carregar angariações da BD
   useEffect(() => {
@@ -3410,7 +3501,7 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
 
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {filtered.map(a=>(
-          <div key={a.id} className="card" style={{display:"flex",alignItems:"center",gap:16}}>
+          <div key={a.id} className="card" style={{display:"flex",alignItems:"center",gap:16,cursor:"pointer"}} onClick={()=>setDetailAng(a)}>
             <div style={{width:44,height:44,borderRadius:8,background:`${G.gold1}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
               {a.tipo==="Apartamento"?"🏙️":a.tipo==="Moradia"?"🏡":a.tipo==="Comercial"?"🏢":"🏠"}
             </div>
@@ -3422,7 +3513,7 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
               </div>
               <p style={{fontSize:12,color:G.textMuted}}>{a.tipo} · {a.freguesia||a.concelho}, {a.distrito} · {Number(a.valor).toLocaleString("pt-PT")} € · {a.comissao}%</p>
             </div>
-            <div style={{display:"flex",gap:6,flexShrink:0}}>
+            <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               {a.estado!=="Assinado" && (
                 <button onClick={()=>editar(a)} style={{background:`${G.gold1}15`,border:`1px solid ${G.gold1}30`,borderRadius:7,padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:12,color:G.gold1,fontFamily:"'DM Sans',sans-serif"}}>
                   <Ic n="edit" s={13} c={G.gold1}/>{!mob&&"Editar"}
@@ -3438,6 +3529,7 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
           </div>
         ))}
       </div>
+      {detailAng && <AngariacaoDetalhe ang={detailAng} user={user} mob={mob} onClose={()=>setDetailAng(null)} onEdit={()=>{editar(detailAng);setDetailAng(null);}} onPDF={()=>gerarPDFAngariacao(detailAng,detailAng.sigProp,detailAng.sigAgente,user)} onDelete={async()=>{if(!confirm("Eliminar esta angariação?"))return; await removeFromDB(detailAng.id); setLista(p=>p.filter(x=>x.id!==detailAng.id)); setDetailAng(null);}}/>}
     </div>
   );
 
@@ -4646,13 +4738,80 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
 
 // ── CLIENTES ──────────────────────────────────────────────────
 const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",obs:""};
+// ── FICHA DETALHADA DO CLIENTE ────────────────────────────────
+const partilharCliente = async (c) => {
+  const texto = `👤 ${c.nome}\n📞 ${c.telefone||"—"}\n✉️ ${c.email||"—"}\n💼 ${c.interesse} · Até ${fmtFull(c.orcamento)}${c.interesse==="Arrendar"?"/mês":""}\n📍 ${c.bairros||"—"}\n${c.obs?"\n"+c.obs:""}\n\nMagna Group Real Estate`;
+  if (navigator.share) { try { await navigator.share({title:c.nome,text:texto}); } catch {} }
+  else { try { await navigator.clipboard.writeText(texto); alert("✓ Contacto copiado!"); } catch { alert("Não foi possível partilhar."); } }
+};
+
+const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
+  const c = cliente;
+  return (
+    <Modal title="" onClose={onClose}>
+      {/* Cabeçalho com avatar */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,paddingBottom:18,borderBottom:`1px solid ${G.border}`}}>
+        <div style={{width:64,height:64,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:28,color:"#0E0E0F",flexShrink:0}}>{c.nome.charAt(0)}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:26,fontWeight:600,marginBottom:4}}>{c.nome}</h2>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <span className={`tag badge-${c.temperatura.toLowerCase()}`}>{c.temperatura}</span>
+            <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{c.interesse}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Contactos clicáveis */}
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:10,marginBottom:18}}>
+        {c.telefone && <a href={`tel:${c.telefone.replace(/\s/g,"")}`} style={{textDecoration:"none",background:G.surface2,borderRadius:10,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=G.surface3} onMouseLeave={e=>e.currentTarget.style.background=G.surface2}>
+          <div style={{width:36,height:36,borderRadius:8,background:`${G.green}20`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n="phone" s={16} c={G.green}/></div>
+          <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Telefone</p><p style={{fontSize:14,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.telefone}</p></div>
+        </a>}
+        {c.email && <a href={`mailto:${c.email}`} style={{textDecoration:"none",background:G.surface2,borderRadius:10,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=G.surface3} onMouseLeave={e=>e.currentTarget.style.background=G.surface2}>
+          <div style={{width:36,height:36,borderRadius:8,background:`${G.blue}20`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n="mail" s={16} c={G.blue}/></div>
+          <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>E-mail</p><p style={{fontSize:14,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email}</p></div>
+        </a>}
+      </div>
+
+      {/* Orçamento e interesse */}
+      <div style={{background:`linear-gradient(135deg,${G.gold1}10,${G.goldDark}05)`,border:`1px solid ${G.gold1}30`,borderRadius:10,padding:"16px 18px",marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:4,textTransform:"uppercase",letterSpacing:".3px"}}>Orçamento Máximo</p>
+        <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:28,fontWeight:700,color:G.gold1}}>{c.orcamento?fmtFull(c.orcamento):"—"}{c.interesse==="Arrendar"?" / mês":""}</p>
+      </div>
+
+      {/* Zonas */}
+      {c.bairros && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Zonas de Interesse</p>
+        <p style={{fontSize:14,color:G.text}}>📍 {c.bairros}</p>
+      </div>}
+
+      {/* Observações */}
+      {c.obs && <div style={{marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Observações</p>
+        <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7,fontStyle:"italic"}}>{c.obs}</p>
+      </div>}
+
+      {/* Ações */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
+        {c.telefone && <a href={`tel:${c.telefone.replace(/\s/g,"")}`} className="btn-gold" style={{textDecoration:"none",flex:mob?1:"none",justifyContent:"center"}}><Ic n="phone" s={14} c="#0E0E0F"/>Ligar</a>}
+        {c.email && <a href={`mailto:${c.email}`} className="btn-ghost" style={{textDecoration:"none",flex:mob?1:"none",justifyContent:"center"}}><Ic n="mail" s={14} c={G.blue}/>Email</a>}
+        <button className="btn-ghost" onClick={()=>partilharCliente(c)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
+        <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
+        <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+      </div>
+    </Modal>
+  );
+};
+
 const Clientes=({clientes,setClientes,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyCl);
   const [editId,setEditId]=useState(null);
+  const [detailCli,setDetailCli]=useState(null);
   const filtered=clientes.filter(c=>c.nome.toLowerCase().includes(search.toLowerCase())||c.email.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.nome)return;if(editId)setClientes(p=>p.map(c=>c.id===editId?{...form,id:editId}:c));else setClientes(p=>[...p,{...form,id:Date.now()}]);setMod(false);setForm(emptyCl);setEditId(null);};
+  const eliminar=(c)=>{if(!confirm("Eliminar este cliente?"))return;setClientes(p=>p.filter(x=>x.id!==c.id));};
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mob?16:24}}>
@@ -4662,15 +4821,15 @@ const Clientes=({clientes,setClientes,mob})=>{
       <div style={{position:"relative",marginBottom:20}}><span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}><Ic n="search2" s={15} c={G.textDim}/></span><input placeholder="Pesquisar..." value={search} onChange={e=>setSrch(e.target.value)} style={{paddingLeft:36}}/></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
         {filtered.map(c=>(
-          <div key={c.id} className="card">
+          <div key={c.id} className="card" style={{cursor:"pointer"}} onClick={()=>setDetailCli(c)}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:"#0E0E0F"}}>{c.nome.charAt(0)}</div>
                 <div><p style={{fontWeight:500,fontSize:15}}>{c.nome}</p><span className={`tag badge-${c.temperatura.toLowerCase()}`}>{c.temperatura}</span></div>
               </div>
-              <div style={{display:"flex",gap:4}}>
+              <div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>{setForm(c);setEditId(c.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="edit" s={14} c={G.textMuted}/></button>
-                <button onClick={()=>setClientes(p=>p.filter(x=>x.id!==c.id))} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="trash" s={14} c={G.red}/></button>
+                <button onClick={()=>eliminar(c)} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="trash" s={14} c={G.red}/></button>
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:7}}>
@@ -4680,11 +4839,12 @@ const Clientes=({clientes,setClientes,mob})=>{
                 <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{c.interesse}</span>
                 <span style={{fontSize:12,color:G.gold1,fontWeight:500}}>Até {fmtFull(c.orcamento)}{c.interesse==="Arrendar"?"/mês":""}</span>
               </div>
-              {c.obs&&<p style={{fontSize:12,color:G.textDim,fontStyle:"italic",borderTop:`1px solid ${G.border}`,paddingTop:8,marginTop:4}}>{c.obs}</p>}
+              {c.obs&&<p style={{fontSize:12,color:G.textDim,fontStyle:"italic",borderTop:`1px solid ${G.border}`,paddingTop:8,marginTop:4}}>{c.obs.slice(0,80)}{c.obs.length>80?"…":""}</p>}
             </div>
           </div>
         ))}
       </div>
+      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm(detailCli);setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob}/>}
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div style={{gridColumn:"1/-1"}}><Field label="Nome completo"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do cliente"/></Field></div>
@@ -4803,6 +4963,66 @@ const CalendarioMes = ({tarefas,mesAtual,setMesAtual,onDiaClick,diaDest}) => {
 
 // ── AGENDA ────────────────────────────────────────────────────
 const emptyT2={titulo:"",cliente:"",data:"2026-05-22",hora:"09:00",tipo:"Visita",prioridade:"Média",concluida:false,local:"",notas:""};
+// ── FICHA DETALHADA DA TAREFA ─────────────────────────────────
+const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,mob}) => {
+  const t = tarefa;
+  const tIco = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
+  const priorCor = {Alta:G.red,Média:"#E0A052",Baixa:G.textDim};
+  const dataFmt = new Date(t.data+"T12:00").toLocaleDateString("pt-PT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  return (
+    <Modal title="" onClose={onClose}>
+      {/* Cabeçalho com tipo e estado */}
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${G.border}`}}>
+        <div style={{width:54,height:54,borderRadius:12,background:t.concluida?`${G.green}20`:`${G.gold1}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>{tIco[t.tipo]||"📌"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?20:24,fontWeight:600,marginBottom:4,textDecoration:t.concluida?"line-through":"none",color:t.concluida?G.textDim:G.text}}>{t.titulo}</h2>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{t.tipo}</span>
+            <span className={`tag badge-${t.prioridade.toLowerCase().replace("é","e")}`}>{t.prioridade}</span>
+            {t.concluida && <span className="tag" style={{background:`${G.green}20`,color:G.green}}>✓ Concluída</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Data e hora destacadas */}
+      <div style={{background:`linear-gradient(135deg,${G.gold1}10,${G.goldDark}05)`,border:`1px solid ${G.gold1}30`,borderRadius:10,padding:"16px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:14}}>
+        <div style={{width:44,height:44,borderRadius:8,background:`${G.gold1}25`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic n="calendar" s={20} c={G.gold1}/></div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:11,color:G.textDim,marginBottom:3,textTransform:"uppercase",letterSpacing:".3px"}}>Quando</p>
+          <p style={{fontSize:mob?14:16,fontWeight:500,textTransform:"capitalize"}}>{dataFmt}</p>
+          <p style={{fontSize:13,color:G.gold1,fontWeight:600,marginTop:2}}>⏰ {t.hora}</p>
+        </div>
+      </div>
+
+      {/* Cliente associado */}
+      {t.cliente && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:"#0E0E0F",flexShrink:0}}>{t.cliente.charAt(0)}</div>
+        <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Cliente</p><p style={{fontSize:14,fontWeight:500}}>{t.cliente}</p></div>
+      </div>}
+
+      {/* Local */}
+      {t.local && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:8,background:`${G.blue}20`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>📍</div>
+        <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Local</p><p style={{fontSize:14,fontWeight:500}}>{t.local}</p></div>
+      </div>}
+
+      {/* Notas */}
+      {t.notas && <div style={{marginBottom:16}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Notas</p>
+        <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7,background:G.surface2,padding:"12px 14px",borderRadius:8}}>{t.notas}</p>
+      </div>}
+
+      {/* Ações */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
+        <button className="btn-gold" onClick={onToggle} style={{flex:mob?"1 1 100%":1}}><Ic n="check" s={14} c="#0E0E0F"/>{t.concluida?"Marcar Pendente":"Concluir"}</button>
+        <button className="btn-ghost" onClick={onExportICS} style={{flex:mob?1:"none"}}><Ic n="calendar" s={14} c={G.blue}/>Calendário</button>
+        <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
+        <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+      </div>
+    </Modal>
+  );
+};
+
 const Agenda=({tarefas,setTarefas,clientes,mob})=>{
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyT2);
@@ -4813,6 +5033,7 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
   const [diaModal,setDiaModal]=useState(null);
   const [icsOk,setIcsOk]=useState(null);
   const [diaDest,setDiaDest]=useState(null); // dia a destacar após criar
+  const [detailT,setDetailT]=useState(null);
   const filtered=tarefas.filter(t=>filtro==="Todas"?true:filtro==="Pendentes"?!t.concluida:t.concluida);
 
   const save=(irCalendario=false)=>{
@@ -4831,6 +5052,8 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
     }
   };
   const exportarEMostrar=(t)=>{exportICS(t);setIcsOk(t.id);setTimeout(()=>setIcsOk(null),3000);};
+  const toggleConcluida=(t)=>setTarefas(p=>p.map(x=>x.id===t.id?{...x,concluida:!x.concluida}:x));
+  const eliminar=(t)=>{if(!confirm("Eliminar esta tarefa?"))return;setTarefas(p=>p.filter(x=>x.id!==t.id));};
   const tIco={Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
   const priorCor={Alta:G.red,Média:"#E0A052",Baixa:G.textDim};
   return(
@@ -4865,8 +5088,8 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:G.textDim}}><p style={{fontSize:28,marginBottom:8}}>✓</p><p>Sem tarefas</p></div>}
           {filtered.sort((a,b)=>a.data.localeCompare(b.data)).map(t=>(
-            <div key={t.id} className="card" style={{display:"flex",alignItems:"center",gap:10,opacity:t.concluida?.55:1,padding:"13px 14px"}}>
-              <button onClick={()=>setTarefas(p=>p.map(x=>x.id===t.id?{...x,concluida:!x.concluida}:x))} style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${t.concluida?G.green:G.border}`,background:t.concluida?G.green:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.concluida&&<Ic n="check" s={11} c="#fff"/>}</button>
+            <div key={t.id} className="card" style={{display:"flex",alignItems:"center",gap:10,opacity:t.concluida?.55:1,padding:"13px 14px",cursor:"pointer"}} onClick={()=>setDetailT(t)}>
+              <button onClick={e=>{e.stopPropagation();toggleConcluida(t);}} style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${t.concluida?G.green:G.border}`,background:t.concluida?G.green:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.concluida&&<Ic n="check" s={11} c="#fff"/>}</button>
               <span style={{fontSize:18,flexShrink:0}}>{tIco[t.tipo]||"📌"}</span>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:14,fontWeight:500,textDecoration:t.concluida?"line-through":"none",color:t.concluida?G.textDim:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.titulo}</p>
@@ -4875,10 +5098,10 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
               <div style={{textAlign:"right",flexShrink:0}}><p style={{fontSize:12,fontWeight:500,color:G.gold1}}>{t.hora}</p><p style={{fontSize:10,color:G.textDim}}>{t.data.split("-").reverse().join("/")}</p></div>
               <span className={`tag badge-${t.prioridade.toLowerCase().replace("é","e")}`} style={{flexShrink:0,fontSize:10}}>{t.prioridade}</span>
               {icsOk===t.id&&<span style={{fontSize:10,color:G.green,flexShrink:0}}>✓ics</span>}
-              <div style={{display:"flex",gap:2,flexShrink:0}}>
+              <div style={{display:"flex",gap:2,flexShrink:0}} onClick={e=>e.stopPropagation()}>
                 <button title="Adicionar ao Calendário (.ics)" onClick={()=>exportarEMostrar(t)} style={{background:`${G.blue}15`,border:"none",borderRadius:6,padding:"5px 6px",cursor:"pointer",display:"flex"}}><Ic n="calendar" s={14} c={G.blue}/></button>
                 <button onClick={()=>{setForm(t);setEditId(t.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"5px 6px",display:"flex"}}><Ic n="edit" s={14} c={G.textMuted}/></button>
-                <button onClick={()=>setTarefas(p=>p.filter(x=>x.id!==t.id))} style={{background:"none",border:"none",cursor:"pointer",padding:"5px 6px",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
+                <button onClick={()=>eliminar(t)} style={{background:"none",border:"none",cursor:"pointer",padding:"5px 6px",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
               </div>
             </div>
           ))}
@@ -4950,11 +5173,10 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
           </div>
         </Modal>
       )}
+      {detailT && <TarefaDetalhe tarefa={detailT} onClose={()=>setDetailT(null)} onEdit={()=>{setForm(detailT);setEditId(detailT.id);setDetailT(null);setMod(true);}} onDelete={()=>{eliminar(detailT);setDetailT(null);}} onToggle={()=>{toggleConcluida(detailT);setDetailT(p=>({...p,concluida:!p.concluida}));}} onExportICS={()=>exportarEMostrar(detailT)} mob={mob}/>}
     </div>
   );
 };
-
-// ── DASHBOARD ─────────────────────────────────────────────────
 const Dashboard=({imoveis,clientes,tarefas,user,setPage,mob})=>{
   const disp=imoveis.filter(i=>i.status==="Disponível").length;
   const qt=clientes.filter(c=>c.temperatura==="Quente").length;
