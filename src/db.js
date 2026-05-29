@@ -104,3 +104,48 @@ export const dbUtilizadores = {
     return data;
   },
 };
+
+// ── STORAGE: Fotos de imóveis ─────────────────────────────
+const BUCKET = 'fotos-imoveis';
+
+// Faz upload de um File (do <input type="file">) e devolve o URL público
+export async function uploadFoto(file) {
+  if (!supa) throw new Error('Supabase não configurado');
+  if (!file) throw new Error('Ficheiro inválido');
+  // Nome único: timestamp + random + extensão original
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supa.storage.from(BUCKET).upload(name, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'image/jpeg',
+  });
+  if (error) { console.error('upload foto:', error); throw new Error(error.message); }
+  // Devolver URL público
+  const { data } = supa.storage.from(BUCKET).getPublicUrl(name);
+  return data.publicUrl;
+}
+
+// Apaga uma foto do bucket dado o seu URL público
+export async function deleteFoto(url) {
+  if (!supa || !url) return;
+  // Extrair o caminho do ficheiro do URL público
+  // URL formato: https://<proj>.supabase.co/storage/v1/object/public/fotos-imoveis/<nome>
+  const match = url.match(new RegExp(`/${BUCKET}/(.+)$`));
+  if (!match) return;
+  const path = match[1];
+  const { error } = await supa.storage.from(BUCKET).remove([path]);
+  if (error) console.warn('delete foto:', error.message);
+}
+
+// Apaga várias fotos em lote
+export async function deleteFotos(urls) {
+  if (!supa || !urls || urls.length === 0) return;
+  const paths = urls.map(url => {
+    const m = url.match(new RegExp(`/${BUCKET}/(.+)$`));
+    return m ? m[1] : null;
+  }).filter(Boolean);
+  if (paths.length === 0) return;
+  const { error } = await supa.storage.from(BUCKET).remove(paths);
+  if (error) console.warn('delete fotos:', error.message);
+}
