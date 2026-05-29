@@ -2472,30 +2472,60 @@ const LoginScreen = ({onLogin}) => {
   const [showKey,setShowK] = useState(false);
   const [loading,setLoad]  = useState(false);
   const [error,setError]   = useState("");
+  const [mode,setMode]     = useState("login"); // login | recover | reset
+  const [info,setInfo]     = useState("");
+
+  // Detectar se vimos de um link de recuperação
+  useEffect(() => {
+    if (window.location.search.includes("reset=true") || window.location.hash.includes("type=recovery")) {
+      setMode("reset");
+    }
+  }, []);
 
   const tryLogin = async () => {
-    setLoad(true); setError("");
-    await new Promise(r=>setTimeout(r,400));
-    let u = null;
-    if (dbReady) {
-      // Tenta autenticar via Supabase
-      try { u = await dbUtilizadores.findByLogin(email.trim(), pass); } catch (e) { console.error(e); }
-    }
-    if (!u) {
-      // Fallback para lista local (sem BD configurada ou utilizador não encontrado)
-      u = getUsers().find(u=>u.email===email.trim()&&u.password===pass);
-    }
-    const isNetlify = window.location.hostname.includes("netlify.app") ||
-                      (window.location.hostname !== "localhost" && !window.location.hostname.includes("claude.ai"));
-    if (!u) { setError("E-mail ou palavra-passe incorretos."); setLoad(false); return; }
-    if (!apiKey.trim() && !isNetlify) {
-      if (!apiKey.trim().startsWith("sk-ant-")) {
+    setLoad(true); setError(""); setInfo("");
+    if (!email.trim() || !pass) { setError("Preenche e-mail e palavra-passe."); setLoad(false); return; }
+    try {
+      if (!dbReady) throw new Error("Base de dados não configurada.");
+      const u = await dbUtilizadores.signIn(email.trim(), pass);
+      const isNetlify = window.location.hostname.includes("netlify.app") ||
+                        (window.location.hostname !== "localhost" && !window.location.hostname.includes("claude.ai"));
+      if (!isNetlify && apiKey.trim() && !apiKey.trim().startsWith("sk-ant-")) {
         setError("Chave de API inválida. Deve começar com sk-ant-");
         setLoad(false); return;
       }
+      setApiKey(apiKey);
+      onLogin(u);
+    } catch (e) {
+      // Mensagens em português para erros comuns
+      const msg = e.message || "";
+      if (msg.includes("Invalid login") || msg.includes("credentials")) setError("E-mail ou palavra-passe incorretos.");
+      else if (msg.includes("Email not confirmed")) setError("E-mail ainda não confirmado. Verifica a tua caixa de entrada.");
+      else setError(msg);
     }
-    setApiKey(apiKey);
-    onLogin(u);
+    setLoad(false);
+  };
+
+  const tryRecover = async () => {
+    setLoad(true); setError(""); setInfo("");
+    if (!email.trim()) { setError("Introduz o e-mail."); setLoad(false); return; }
+    try {
+      await dbUtilizadores.resetPassword(email.trim());
+      setInfo("✓ Enviámos um e-mail com instruções para recuperar a palavra-passe. Verifica a tua caixa de entrada (e spam).");
+    } catch (e) { setError(e.message || "Não foi possível enviar o e-mail."); }
+    setLoad(false);
+  };
+
+  const tryReset = async () => {
+    setLoad(true); setError(""); setInfo("");
+    if (!pass || pass.length < 6) { setError("A nova palavra-passe deve ter pelo menos 6 caracteres."); setLoad(false); return; }
+    try {
+      await dbUtilizadores.updatePassword(pass);
+      setInfo("✓ Palavra-passe alterada! Já podes iniciar sessão.");
+      // Limpar URL e voltar ao login
+      window.history.replaceState({}, "", "/");
+      setTimeout(()=>{ setMode("login"); setPass(""); setInfo(""); }, 2500);
+    } catch (e) { setError(e.message || "Erro ao alterar a palavra-passe."); }
     setLoad(false);
   };
 
@@ -2514,9 +2544,15 @@ const LoginScreen = ({onLogin}) => {
           <div style={{marginBottom:36}}><Logo size="lg"/></div>
 
           <h1 className="login-title">
-            Bem-vindo<br/><span className="gg">de volta.</span>
+            {mode==="login" && <>Bem-vindo<br/><span className="gg">de volta.</span></>}
+            {mode==="recover" && <>Esqueceu-se da<br/><span className="gg">palavra-passe?</span></>}
+            {mode==="reset" && <>Nova<br/><span className="gg">palavra-passe.</span></>}
           </h1>
-          <p className="login-sub">Inicie sessão para aceder ao seu CRM imobiliário.</p>
+          <p className="login-sub">
+            {mode==="login" && "Inicie sessão para aceder ao seu CRM imobiliário."}
+            {mode==="recover" && "Indique o seu e-mail e enviaremos instruções."}
+            {mode==="reset" && "Escolha uma nova palavra-passe (mín. 6 caracteres)."}
+          </p>
 
           {error && (
             <div className="login-error">
@@ -2524,31 +2560,36 @@ const LoginScreen = ({onLogin}) => {
             </div>
           )}
 
-          <div className="login-field">
-            <label>E-mail</label>
-            <div style={{position:"relative"}}>
-              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="mail" s={15} c={G.textDim}/></span>
-              <input className="login-input" style={{paddingLeft:42}} type="email" placeholder="o-seu@magna.pt"
-                value={email} onChange={e=>{setEmail(e.target.value);setError("")}}
-                onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+          {mode !== "reset" && (
+            <div className="login-field">
+              <label>E-mail</label>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="mail" s={15} c={G.textDim}/></span>
+                <input className="login-input" style={{paddingLeft:42}} type="email" placeholder="o-seu@email.pt"
+                  value={email} onChange={e=>{setEmail(e.target.value);setError("")}}
+                  onKeyDown={e=>e.key==="Enter"&&(mode==="login"?tryLogin():tryRecover())}/>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="login-field">
-            <label>Palavra-passe</label>
-            <div style={{position:"relative"}}>
-              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="lock" s={15} c={G.textDim}/></span>
-              <input className="login-input" style={{paddingLeft:42,paddingRight:44}}
-                type={showPass?"text":"password"} placeholder="••••••••"
-                value={pass} onChange={e=>{setPass(e.target.value);setError("")}}
-                onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
-              <button onClick={()=>setShow(!showPass)} style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}>
-                <Ic n={showPass?"eyeoff":"eye"} s={16} c={G.textDim}/>
-              </button>
+          {mode !== "recover" && (
+            <div className="login-field">
+              <label>{mode==="reset" ? "Nova palavra-passe" : "Palavra-passe"}</label>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="lock" s={15} c={G.textDim}/></span>
+                <input className="login-input" style={{paddingLeft:42,paddingRight:44}}
+                  type={showPass?"text":"password"} placeholder="••••••••"
+                  value={pass} onChange={e=>{setPass(e.target.value);setError("")}}
+                  onKeyDown={e=>e.key==="Enter"&&(mode==="login"?tryLogin():tryReset())}/>
+                <button onClick={()=>setShow(!showPass)} style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}>
+                  <Ic n={showPass?"eyeoff":"eye"} s={16} c={G.textDim}/>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* API Key — opcional se no Netlify com variável de ambiente */}
+          {/* API Key — só no modo login */}
+          {mode === "login" && (
           <div className="login-field">
             <label style={{display:"flex",alignItems:"center",gap:6}}>
               Chave de API Anthropic
@@ -2570,27 +2611,53 @@ const LoginScreen = ({onLogin}) => {
               Ou obtém em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{color:G.gold1,textDecoration:"none"}}>console.anthropic.com</a>
             </p>
           </div>
+          )}
 
-          <button className="login-btn" onClick={tryLogin} disabled={loading||!email||!pass}>
-            {loading ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span className="spinner"/>A verificar...</span> : "Iniciar Sessão"}
-          </button>
+          {/* Mensagem informativa (sucesso) */}
+          {info && <div style={{background:`${G.green}15`,border:`1px solid ${G.green}40`,borderRadius:8,padding:"11px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:8}}>
+            <span style={{color:G.green,flexShrink:0}}>✓</span>
+            <p style={{fontSize:13,color:G.green,lineHeight:1.5}}>{info}</p>
+          </div>}
 
-          {/* Demo credentials */}
-          <div className="demo-hint">
-            <p style={{fontSize:11,color:G.textDim,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>Acessos de demonstração</p>
-            {getUsers().map(u=>(
-              <div key={u.id} className="demo-row" onClick={()=>fillDemo(u)}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#0E0E0F"}}>{u.avatar}</div>
-                  <div>
-                    <p style={{fontSize:12,fontWeight:500,color:G.text}}>{u.nome}</p>
-                    <p style={{fontSize:11,color:G.textDim}}>{u.cargo}</p>
-                  </div>
-                </div>
-                <span style={{fontSize:11,color:G.textDim}}>{u.email}</span>
-              </div>
-            ))}
-          </div>
+          {mode === "login" && (
+            <button className="login-btn" onClick={tryLogin} disabled={loading||!email||!pass}>
+              {loading ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span className="spinner"/>A verificar...</span> : "Iniciar Sessão"}
+            </button>
+          )}
+
+          {mode === "recover" && (
+            <button className="login-btn" onClick={tryRecover} disabled={loading||!email}>
+              {loading ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span className="spinner"/>A enviar...</span> : "Enviar email de recuperação"}
+            </button>
+          )}
+
+          {mode === "reset" && (
+            <button className="login-btn" onClick={tryReset} disabled={loading||!pass}>
+              {loading ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span className="spinner"/>A guardar...</span> : "Definir nova palavra-passe"}
+            </button>
+          )}
+
+          {/* Links de mudança de modo */}
+          {mode === "login" && (
+            <p style={{textAlign:"center",fontSize:13,color:G.textMuted,marginTop:14}}>
+              <a onClick={()=>{setMode("recover");setError("");setInfo("");setPass("");}} style={{color:G.gold1,cursor:"pointer",textDecoration:"none"}}>Esqueci-me da palavra-passe</a>
+            </p>
+          )}
+          {mode === "recover" && (
+            <p style={{textAlign:"center",fontSize:13,color:G.textMuted,marginTop:14}}>
+              <a onClick={()=>{setMode("login");setError("");setInfo("");}} style={{color:G.gold1,cursor:"pointer",textDecoration:"none"}}>← Voltar ao início de sessão</a>
+            </p>
+          )}
+
+          {/* Demo credentials — só em modo login */}
+          {mode === "login" && (
+            <div className="demo-hint">
+              <p style={{fontSize:11,color:G.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px"}}>Magna Group Real Estate</p>
+              <p style={{fontSize:12,color:G.textMuted,lineHeight:1.6}}>
+                Para criar contas adicionais, inicia sessão como administrador e vai à secção <strong style={{color:G.text}}>Equipa</strong>.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -3735,12 +3802,13 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
 };
 
 const GestaoUtilizadores = ({currentUser}) => {
-  const [lista, setLista]   = useState(getUsers());
+  const [lista, setLista]   = useState([]);
   const [modal, setMod]     = useState(false);
   const [form, setForm]     = useState(emptyU);
   const [editId, setEditId] = useState(null);
   const [showPw, setShowPw] = useState(false);
   const [erro, setErro]     = useState("");
+  const [info, setInfo]     = useState("");
 
   const isAdmin = currentUser.role === "admin";
 
@@ -3748,45 +3816,54 @@ const GestaoUtilizadores = ({currentUser}) => {
   useEffect(() => {
     if (!dbReady) return;
     (async () => {
-      try { const data = await dbUtilizadores.list(); if (data.length>0) setLista(data); }
+      try { const data = await dbUtilizadores.list(); setLista(data); }
       catch (e) { console.error("load utilizadores:", e); }
     })();
   }, []);
 
   const save = async () => {
-    setErro("");
-    if (!form.nome || !form.email || (!editId && !form.password)) { setErro("Preenche todos os campos obrigatórios."); return; }
+    setErro(""); setInfo("");
+    if (!form.nome || !form.email) { setErro("Preenche todos os campos obrigatórios."); return; }
     if (!form.email.includes("@")) { setErro("E-mail inválido."); return; }
+    if (!editId && (!form.password || form.password.length < 6)) { setErro("A palavra-passe deve ter pelo menos 6 caracteres."); return; }
     const avatar = form.avatar || form.nome.charAt(0).toUpperCase();
     try {
       if (editId) {
-        const existing = lista.find(u => u.id === editId);
-        const payload = { ...existing, ...form, avatar, password: form.password || existing.password };
-        if (dbReady) await dbUtilizadores.update(editId, payload);
-        const updated = lista.map(u => u.id === editId ? payload : u);
-        setLista(updated); saveUsers(updated);
+        // EDITAR — só atualiza o perfil (não dá para mudar email/password aqui)
+        const payload = { nome: form.nome, cargo: form.cargo, avatar, role: form.role };
+        const updated = await dbUtilizadores.updateProfile(editId, payload);
+        setLista(lista.map(u => u.id === editId ? { ...u, ...updated } : u));
+        setInfo("✓ Perfil atualizado.");
       } else {
+        // CRIAR — cria conta no Auth e perfil
         if (lista.find(u => u.email === form.email)) { setErro("Já existe um utilizador com este e-mail."); return; }
-        let novo = { ...form, avatar };
-        if (dbReady) {
-          const saved = await dbUtilizadores.insert(novo);
-          if (saved) novo = saved;
-          else novo.id = Date.now();
-        } else { novo.id = Date.now(); }
-        const updated = [...lista, novo];
-        setLista(updated); saveUsers(updated);
+        const novo = await dbUtilizadores.create({
+          email: form.email.trim(),
+          password: form.password,
+          nome: form.nome,
+          cargo: form.cargo,
+          avatar,
+          role: form.role || "agente",
+        });
+        setLista([...lista, novo]);
+        setInfo("✓ Utilizador criado.");
       }
       setMod(false); setForm(emptyU); setEditId(null); setErro("");
-    } catch (e) { setErro("Erro ao guardar: " + e.message); }
+      setTimeout(()=>setInfo(""), 3000);
+    } catch (e) {
+      const msg = e.message || "";
+      if (msg.includes("already registered") || msg.includes("already been registered")) setErro("Já existe uma conta com este e-mail.");
+      else if (msg.includes("Password")) setErro("Palavra-passe demasiado fraca (mín. 6 caracteres).");
+      else setErro("Erro ao guardar: " + msg);
+    }
   };
 
   const del = async (id) => {
     if (id === currentUser.id) { alert("Não podes eliminar o teu próprio utilizador."); return; }
-    if (!confirm("Eliminar este utilizador?")) return;
+    if (!confirm("Eliminar este utilizador? Isto remove o perfil — a conta de autenticação fica activa até ser removida manualmente na Supabase.")) return;
     try {
-      if (dbReady) await dbUtilizadores.remove(id);
-      const updated = lista.filter(u => u.id !== id);
-      setLista(updated); saveUsers(updated);
+      await dbUtilizadores.remove(id);
+      setLista(lista.filter(u => u.id !== id));
     } catch (e) { alert("Erro: " + e.message); }
   };
 
@@ -3838,13 +3915,21 @@ const GestaoUtilizadores = ({currentUser}) => {
             <div style={{gridColumn:"1/-1"}}>
               <Field label="Nome completo *"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Ex: Ana Rodrigues"/></Field>
             </div>
-            <Field label="E-mail *"><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="ana@magna.pt"/></Field>
-            <Field label={editId?"Nova palavra-passe (deixa em branco para manter)":"Palavra-passe *"}>
-              <div style={{position:"relative"}}>
-                <input type={showPw?"text":"password"} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder={editId?"••••••••":"Mínimo 6 caracteres"} style={{paddingRight:40}}/>
-                <button onClick={()=>setShowPw(!showPw)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}><Ic n={showPw?"eyeoff":"eye"} s={15} c={G.textDim}/></button>
+            <Field label="E-mail *"><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="ana@magna.pt" disabled={!!editId} style={editId?{opacity:.6,cursor:"not-allowed"}:{}}/></Field>
+            {!editId && (
+              <Field label="Palavra-passe *">
+                <div style={{position:"relative"}}>
+                  <input type={showPw?"text":"password"} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Mínimo 6 caracteres" style={{paddingRight:40}}/>
+                  <button onClick={()=>setShowPw(!showPw)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}><Ic n={showPw?"eyeoff":"eye"} s={15} c={G.textDim}/></button>
+                </div>
+              </Field>
+            )}
+            {editId && (
+              <div style={{display:"flex",alignItems:"center",background:`${G.blue}10`,border:`1px solid ${G.blue}30`,borderRadius:8,padding:"10px 12px",fontSize:11,color:G.textMuted,gap:8}}>
+                <Ic n="info" s={14} c={G.blue}/>
+                <span>Para alterar a palavra-passe, o utilizador pode usar "Esqueci-me da palavra-passe" no login.</span>
               </div>
-            </Field>
+            )}
             <Field label="Cargo">
               <select value={form.cargo} onChange={e=>setForm(p=>({...p,cargo:e.target.value}))}>
                 {cargos.map(c=><option key={c}>{c}</option>)}
@@ -5268,7 +5353,20 @@ export default function App() {
   const [clientes,setClientes] = useState([]);
   const [tarefas,setTarefas]   = useState([]);
   const [loading,setLoading]   = useState(false);
+  const [bootLoading,setBootLoading] = useState(true);
   const mob                    = useIsMobile();
+
+  // Recuperar sessão no arranque
+  useEffect(() => {
+    (async () => {
+      if (!dbReady) { setBootLoading(false); return; }
+      try {
+        const u = await dbUtilizadores.getSession();
+        if (u) setUser(u);
+      } catch (e) { console.warn("getSession:", e); }
+      setBootLoading(false);
+    })();
+  }, []);
 
   // Wrapper de estado para os dados — escreve na BD e actualiza localmente
   const makeDBWrapper = (collection, db, setLocal) => {
@@ -5337,6 +5435,22 @@ export default function App() {
     })();
   }, [user]);
 
+  // Logout — terminar sessão Supabase
+  const handleLogout = async () => {
+    if (dbReady) { try { await dbUtilizadores.signOut(); } catch {} }
+    setUser(null);
+    setPage("dashboard");
+  };
+
+  // Ecrã de loading durante o boot (a verificar sessão)
+  if (bootLoading) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:G.bg,flexDirection:"column",gap:18}}>
+      <style>{css}</style>
+      <div className="spinner" style={{width:32,height:32,borderWidth:3,borderColor:`${G.gold1}30`,borderTopColor:G.gold1}}/>
+      <p style={{color:G.textMuted,fontSize:13}}>A carregar...</p>
+    </div>
+  );
+
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
   const nav=[
@@ -5377,7 +5491,7 @@ export default function App() {
                   <p style={{fontSize:13,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome.split(" ")[0]}</p>
                   <p style={{fontSize:11,color:G.textDim}}>{user.cargo}</p>
                 </div>
-                <button onClick={()=>{setUser(null);setPage("dashboard");}} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:.6}} title="Terminar sessão">
+                <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:.6}} title="Terminar sessão">
                   <Ic n="logout" s={16} c={G.red}/>
                 </button>
               </div>
@@ -5403,7 +5517,7 @@ export default function App() {
             <Logo/>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:"#0E0E0F"}}>{user.avatar}</div>
-              <button onClick={()=>{setUser(null);setPage("dashboard");}} style={{background:"none",border:"none",cursor:"pointer",padding:"6px",display:"flex"}}>
+              <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"6px",display:"flex"}}>
                 <Ic n="logout" s={18} c={G.red}/>
               </button>
             </div>
