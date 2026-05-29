@@ -220,7 +220,14 @@ export async function deleteFoto(url) {
   const { error } = await supa.storage.from(BUCKET).remove([path]);
   if (error) console.warn('delete foto:', error.message);
 }
+// ── Leads: três pilares ───────────────────────────────────
+const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado'];
+const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado'];
+const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado'];
 
+export const dbLeadsGestao    = makeCRUD('leads_gestao',    {}, F_LEADS_GESTAO);
+export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
+export const dbLeadsHabitar   = makeCRUD('leads_habitar',   {}, F_LEADS_HABITAR);
 // Apaga várias fotos em lote
 export async function deleteFotos(urls) {
   if (!supa || !urls || urls.length === 0) return;
