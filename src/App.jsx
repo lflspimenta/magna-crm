@@ -1,7 +1,243 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos } from "./db.js";
+import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar } from "./db.js";
+// ── Funil de Negócios ─────────────────────────────────────────
+function Funil({ mob }) {
+  const [tab, setTab] = useState("gestao");
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [notas, setNotas] = useState("");
+  const [saving, setSaving] = useState(false);
 
+  const ESTADOS = ["novo","contactado","proposta","fechado","perdido"];
+  const ESTADO_LABEL = { novo:"Novo", contactado:"Contactado", proposta:"Proposta enviada", fechado:"Fechado", perdido:"Perdido" };
+  const ESTADO_COLOR = { novo:G.blue, contactado:G.gold1, proposta:G.purple, fechado:G.green, perdido:G.red };
+
+  const TABS = [
+    { id:"gestao",    label:"01 — Rentabilizar", db: dbLeadsGestao },
+    { id:"aquisicao", label:"02 — Adquirir",     db: dbLeadsAquisicao },
+    { id:"habitar",   label:"03 — Habitar",       db: dbLeadsHabitar },
+  ];
+
+  const currentDB = TABS.find(t => t.id === tab)?.db;
+
+  useEffect(() => {
+    loadLeads();
+  }, [tab]);
+
+  const loadLeads = async () => {
+    setLoading(true);
+    setSelected(null);
+    try {
+      const data = await currentDB.list();
+      setLeads(data);
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateEstado = async (lead, estado) => {
+    try {
+      await currentDB.update(lead.id, { ...lead, estado });
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, estado } : l));
+      if (selected?.id === lead.id) setSelected(s => ({ ...s, estado }));
+    } catch(e) { alert("Erro ao actualizar: " + e.message); }
+  };
+
+  const saveNotas = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await currentDB.update(selected.id, { ...selected, notas });
+      setLeads(prev => prev.map(l => l.id === selected.id ? { ...l, notas } : l));
+      setSelected(s => ({ ...s, notas }));
+    } catch(e) { alert("Erro ao guardar: " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteLead = async (lead) => {
+    if (!confirm(`Eliminar lead de ${lead.nome}?`)) return;
+    try {
+      await currentDB.remove(lead.id);
+      setLeads(prev => prev.filter(l => l.id !== lead.id));
+      if (selected?.id === lead.id) setSelected(null);
+    } catch(e) { alert("Erro ao eliminar: " + e.message); }
+  };
+
+  const leadsByEstado = (estado) => leads.filter(l => l.estado === estado);
+
+  const openLead = (lead) => {
+    setSelected(lead);
+    setNotas(lead.notas || "");
+  };
+
+  return (
+    <div style={{ maxWidth: 1200 }}>
+      {/* Header */}
+      <div style={{ marginBottom: 32 }}>
+        <p style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Funil de Negócios</p>
+        <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: mob ? 28 : 36, fontWeight: 300, color: G.text }}>
+          Pipeline de Leads
+        </h2>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${G.border}`, marginBottom: 32 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding: "12px 0", marginRight: 32,
+            fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase",
+            background: "none", border: "none",
+            borderBottom: `1px solid ${tab === t.id ? G.gold1 : "transparent"}`,
+            color: tab === t.id ? G.gold1 : G.textMuted,
+            cursor: "pointer", position: "relative", bottom: -1,
+            transition: "all 0.2s"
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Contadores */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 32 }}>
+        {ESTADOS.map(e => (
+          <div key={e} style={{ background: G.surface, border: `1px solid ${G.border}`, borderTop: `2px solid ${ESTADO_COLOR[e]}`, padding: "16px 14px" }}>
+            <p style={{ fontSize: 28, fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, color: G.text, marginBottom: 2 }}>
+              {leadsByEstado(e).length}
+            </p>
+            <p style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: G.textDim }}>
+              {ESTADO_LABEL[e]}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+          <div className="spinner" style={{ width: 28, height: 28, borderWidth: 2, borderColor: `${G.gold1}30`, borderTopColor: G.gold1 }}/>
+        </div>
+      ) : leads.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 80, color: G.textDim }}>
+          <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 8 }}>Sem leads ainda</p>
+          <p style={{ fontSize: 13 }}>Os pedidos do site aparecerão aqui automaticamente.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 24 }}>
+          {/* Lista */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {leads.map(lead => (
+              <div key={lead.id} onClick={() => openLead(lead)} style={{
+                background: selected?.id === lead.id ? G.surface2 : G.surface,
+                border: `1px solid ${selected?.id === lead.id ? G.gold1 + "40" : G.border}`,
+                padding: "16px 20px",
+                cursor: "pointer", transition: "all 0.2s",
+                display: "flex", alignItems: "center", gap: 16
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[lead.estado || "novo"], flexShrink: 0 }}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: G.text, marginBottom: 2 }}>{lead.nome}</p>
+                  <p style={{ fontSize: 12, color: G.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {lead.email} {lead.telefone ? `· ${lead.telefone}` : ""}
+                  </p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                  <select
+                    value={lead.estado || "novo"}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); updateEstado(lead, e.target.value); }}
+                    style={{
+                      background: G.surface3, border: `1px solid ${G.border}`,
+                      color: ESTADO_COLOR[lead.estado || "novo"],
+                      fontSize: 11, letterSpacing: "0.1em", padding: "4px 8px",
+                      cursor: "pointer", outline: "none"
+                    }}
+                  >
+                    {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                  </select>
+                  <p style={{ fontSize: 11, color: G.textDim, whiteSpace: "nowrap" }}>
+                    {lead.created_at ? new Date(lead.created_at).toLocaleDateString("pt-PT") : "—"}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Detalhe */}
+          {selected && (
+            <div style={{ background: G.surface, border: `1px solid ${G.border}`, padding: 24, alignSelf: "start", position: "sticky", top: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 24 }}>
+                <div>
+                  <p style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 6 }}>Lead</p>
+                  <p style={{ fontSize: 20, fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, color: G.text }}>{selected.nome}</p>
+                </div>
+                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 18 }}>✕</button>
+              </div>
+
+              {/* Campos do lead */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                {[
+                  ["Email", selected.email],
+                  ["Telefone", selected.telefone],
+                  ["Localização", selected.localizacao || selected.zona_interesse],
+                  ["Tipologia", selected.tipologia],
+                  ["Orçamento", selected.orcamento],
+                  ["Modalidade", selected.modalidade],
+                  ["Finalidade", selected.finalidade],
+                  ["Situação actual", selected.situacao_atual],
+                  ["Serviço", selected.servico_interesse],
+                  ["Descrição", selected.descricao],
+                ].filter(([_, v]) => v).map(([label, value]) => (
+                  <div key={label} style={{ borderBottom: `1px solid ${G.border}`, paddingBottom: 10 }}>
+                    <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.textDim, marginBottom: 3 }}>{label}</p>
+                    <p style={{ fontSize: 13, color: G.text }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Notas internas */}
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Notas internas</p>
+                <textarea
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Adiciona notas sobre este lead..."
+                  style={{
+                    width: "100%", height: 100, background: G.surface2,
+                    border: `1px solid ${G.border}`, color: G.text,
+                    fontFamily: "'DM Sans',sans-serif", fontSize: 13,
+                    padding: 12, resize: "none", outline: "none",
+                    lineHeight: 1.6
+                  }}
+                />
+                <button onClick={saveNotas} disabled={saving} style={{
+                  width: "100%", padding: "10px",
+                  background: G.gold1, color: G.bg,
+                  border: "none", fontSize: 11, letterSpacing: "0.2em",
+                  textTransform: "uppercase", fontWeight: 500,
+                  cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.7 : 1, marginTop: 8
+                }}>
+                  {saving ? "A guardar..." : "Guardar notas"}
+                </button>
+              </div>
+
+              {/* Eliminar */}
+              <button onClick={() => deleteLead(selected)} style={{
+                width: "100%", padding: "8px",
+                background: "none", border: `1px solid ${G.red}20`,
+                color: G.red, fontSize: 11, letterSpacing: "0.15em",
+                textTransform: "uppercase", cursor: "pointer"
+              }}>
+                Eliminar lead
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 // ── Responsive hook ───────────────────────────────────────────
 const useIsMobile = () => {
   const [mob, setMob] = useState(window.innerWidth < 768);
@@ -5459,6 +5695,7 @@ export default function App() {
     {id:"angariações", label:"Angariações",  icon:"file"},
     {id:"imoveis",     label:"Imóveis",      icon:"building"},
     {id:"clientes",    label:"Clientes",     icon:"users"},
+    {id:"funil",       label:"Funil",        icon:"chart"},
     {id:"agenda",      label:"Agenda",       icon:"calendar"},
     {id:"prospeccao",  label:"IA",           icon:"spark"},
     {id:"utilizadores",label:"Equipa",       icon:"user"},
@@ -5504,6 +5741,7 @@ export default function App() {
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
+            {page==="funil"&&<Funil mob={false}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
@@ -5531,6 +5769,7 @@ export default function App() {
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
+            {page==="funil"&&<Funil mob={true}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
