@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores } from "./db.js";
+import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos } from "./db.js";
 
 // ── Responsive hook ───────────────────────────────────────────
 const useIsMobile = () => {
@@ -4468,7 +4468,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
         <button className="btn-ghost" onClick={()=>gerarFichaPDF(imovel)} style={{flex:mob?1:"none"}}><Ic n="pdf" s={14} c={G.gold1}/>Gerar PDF</button>
         <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
-        <button className="btn-ghost" onClick={()=>{if(confirm("Eliminar este imóvel?"))onDelete();}} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+        <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
     </Modal>
   );
@@ -4482,9 +4482,18 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
   const [editId,setEditId]=useState(null);
   const [mktIm,setMktIm]=useState(null);
   const [detailIm,setDetailIm]=useState(null);
+  const [uploading,setUploading]=useState(false);
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.titulo)return;const d={...form,valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
   const onImport=(data)=>{setImoveis(p=>[...p,{...data,id:Date.now(),valor:Number(data.valor),area:Number(data.area),quartos:Number(data.quartos)||0}]);setImportMod(false);};
+  // Eliminar imóvel + fotos do Storage
+  const eliminar=async(im)=>{
+    if(!confirm("Eliminar este imóvel? As fotos também serão apagadas."))return;
+    // Apagar fotos do Storage (só URLs da Supabase, ignora base64 antigos)
+    const fotosStorage=(im.fotos||[]).filter(f=>typeof f==="string"&&f.startsWith("http"));
+    if(fotosStorage.length>0&&dbReady){try{await deleteFotos(fotosStorage);}catch(e){console.warn("erro a apagar fotos:",e);}}
+    setImoveis(p=>p.filter(i=>i.id!==im.id));
+  };
   const fotos=["🏠","🏡","🏢","🏙️","🌿","🏗️","🏪","🏨"];
   return(
     <div>
@@ -4523,7 +4532,7 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
               <button title="Ver ficha" onClick={()=>setDetailIm(im)} style={{background:`${G.gold1}20`,border:"none",borderRadius:6,padding:"6px 8px",cursor:"pointer",display:"flex"}}><Ic n="eye" s={14} c={G.gold1}/></button>
               <button title="Avaliar com IA" onClick={()=>setMktIm(im)} style={{background:`${G.purple}20`,border:"none",borderRadius:6,padding:"6px 8px",cursor:"pointer",display:"flex"}}><Ic n="spark" s={14} c={G.purple}/></button>
               <button onClick={()=>{setForm(im);setEditId(im.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"6px 7px",display:"flex"}}><Ic n="edit" s={14} c={G.textMuted}/></button>
-              <button onClick={()=>setImoveis(p=>p.filter(i=>i.id!==im.id))} style={{background:"none",border:"none",cursor:"pointer",padding:"6px 7px",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
+              <button onClick={()=>eliminar(im)} style={{background:"none",border:"none",cursor:"pointer",padding:"6px 7px",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
             </div>
           </div>
         ))}
@@ -4551,7 +4560,7 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
               <button onClick={()=>setDetailIm(im)} style={{flex:1,background:`${G.gold1}20`,border:`1px solid ${G.gold1}40`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.gold1,fontFamily:"'DM Sans',sans-serif"}}><Ic n="eye" s={13} c={G.gold1}/>Ver</button>
               <button onClick={()=>setMktIm(im)} style={{flex:1,background:`${G.purple}20`,border:`1px solid ${G.purple}40`,borderRadius:7,padding:"9px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:G.purple,fontFamily:"'DM Sans',sans-serif"}}><Ic n="spark" s={13} c={G.purple}/>IA</button>
               <button onClick={()=>{setForm(im);setEditId(im.id);setMod(true);}} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px 12px",cursor:"pointer",display:"flex"}}><Ic n="edit" s={15} c={G.textMuted}/></button>
-              <button onClick={()=>setImoveis(p=>p.filter(i=>i.id!==im.id))} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px 12px",cursor:"pointer",display:"flex"}}><Ic n="trash" s={15} c={G.red}/></button>
+              <button onClick={()=>eliminar(im)} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"9px 12px",cursor:"pointer",display:"flex"}}><Ic n="trash" s={15} c={G.red}/></button>
             </div>
           </div>
         ))}
@@ -4573,25 +4582,48 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
               {(form.fotos||[]).map((src,idx)=>(
                 <div key={idx} style={{position:"relative",width:80,height:80}}>
                   <img src={src} alt="" style={{width:80,height:80,borderRadius:8,objectFit:"cover"}}/>
-                  <button onClick={()=>setForm(p=>({...p,fotos:p.fotos.filter((_,i)=>i!==idx)}))} style={{position:"absolute",top:-6,right:-6,width:22,height:22,borderRadius:"50%",background:G.red,border:"2px solid "+G.surface1,color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+                  <button onClick={async()=>{
+                    // Apagar do Storage também se for URL Supabase
+                    if(dbReady&&typeof src==="string"&&src.startsWith("http")){
+                      try{await deleteFoto(src);}catch(e){console.warn("delete foto:",e);}
+                    }
+                    setForm(p=>({...p,fotos:p.fotos.filter((_,i)=>i!==idx)}));
+                  }} style={{position:"absolute",top:-6,right:-6,width:22,height:22,borderRadius:"50%",background:G.red,border:"2px solid "+G.surface1,color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
                 </div>
               ))}
-              <label style={{width:80,height:80,borderRadius:8,border:`2px dashed ${G.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",color:G.textMuted,gap:4}}>
-                <Ic n="plus" s={18} c={G.textMuted}/>
-                <span style={{fontSize:10}}>Adicionar</span>
-                <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{
+              <label style={{width:80,height:80,borderRadius:8,border:`2px dashed ${G.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",color:G.textMuted,gap:4,opacity:uploading?.5:1}}>
+                {uploading?<div className="spinner" style={{width:18,height:18,border:`2px solid ${G.textDim}`,borderTopColor:G.gold1,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>:<><Ic n="plus" s={18} c={G.textMuted}/><span style={{fontSize:10}}>Adicionar</span></>}
+                <input type="file" accept="image/*" multiple disabled={uploading} style={{display:"none"}} onChange={async e=>{
                   const files=Array.from(e.target.files||[]);
-                  files.forEach(file=>{
-                    if(file.size>3*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`);return;}
-                    const reader=new FileReader();
-                    reader.onload=ev=>setForm(p=>({...p,fotos:[...(p.fotos||[]),ev.target.result]}));
-                    reader.readAsDataURL(file);
-                  });
+                  if(files.length===0)return;
                   e.target.value="";
+                  if(!dbReady){
+                    // Fallback: base64 em memória (sessão apenas)
+                    files.forEach(file=>{
+                      if(file.size>3*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`);return;}
+                      const reader=new FileReader();
+                      reader.onload=ev=>setForm(p=>({...p,fotos:[...(p.fotos||[]),ev.target.result]}));
+                      reader.readAsDataURL(file);
+                    });
+                    return;
+                  }
+                  // Upload para Supabase Storage
+                  setUploading(true);
+                  for(const file of files){
+                    if(file.size>5*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 5MB).`);continue;}
+                    try{
+                      const url=await uploadFoto(file);
+                      setForm(p=>({...p,fotos:[...(p.fotos||[]),url]}));
+                    }catch(err){
+                      console.error("upload erro:",err);
+                      alert(`Erro ao carregar "${file.name}": ${err.message}`);
+                    }
+                  }
+                  setUploading(false);
                 }}/>
               </label>
             </div>
-            <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>As fotos ficam guardadas durante a sessão. Máx 3MB cada. A primeira é a foto de capa.</p>
+            <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>{dbReady?"As fotos ficam guardadas para sempre. Máx 5MB cada. A primeira é a foto de capa.":"As fotos ficam guardadas durante a sessão. Máx 3MB cada."}</p>
           </div>
           <div style={{gridColumn:"1/-1"}}>
             <p style={{fontSize:12,color:G.textMuted,marginBottom:10,textTransform:"uppercase",letterSpacing:".3px"}}>Localização</p>
@@ -4607,7 +4639,7 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
       </Modal>}
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onDelete={()=>{setImoveis(p=>p.filter(i=>i.id!==detailIm.id));setDetailIm(null);}} mob={mob}/>}
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
     </div>
   );
 };
