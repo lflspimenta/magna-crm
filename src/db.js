@@ -7,11 +7,12 @@ const KEY = import.meta.env.VITE_SUPABASE_KEY;
 export const supa = (URL && KEY) ? createClient(URL, KEY) : null;
 export const dbReady = !!supa;
 
+// ── Helpers ──────────────────────────────────────────────
 // Converte snake_case da BD para camelCase usado no app
 const fromDB = (row, mapping) => {
   if (!row) return null;
   const out = { ...row };
-  for (const [appKey, dbKey] of Object.entries(mapping)) {
+  for (const [appKey, dbKey] of Object.entries(mapping || {})) {
     if (dbKey in out) {
       out[appKey] = out[dbKey];
       if (appKey !== dbKey) delete out[dbKey];
@@ -19,171 +20,83 @@ const fromDB = (row, mapping) => {
   }
   return out;
 };
-const toDB = (obj, mapping) => {
+
+// Filtra um objecto deixando só os campos permitidos
+const onlyFields = (obj, allowed) => {
+  const out = {};
+  for (const f of allowed) if (f in obj) out[f] = obj[f];
+  return out;
+};
+
+// Converte appKey -> dbKey e filtra campos não permitidos
+const toDB = (obj, mapping, allowed) => {
   const out = { ...obj };
-  for (const [appKey, dbKey] of Object.entries(mapping)) {
+  for (const [appKey, dbKey] of Object.entries(mapping || {})) {
     if (appKey in out) {
       out[dbKey] = out[appKey];
       if (appKey !== dbKey) delete out[appKey];
     }
   }
-  // Remove id se não for válido (deixar a BD gerar)
-  if (!out.id || typeof out.id === 'string' && out.id.length > 18) delete out.id;
-  return out;
+  return onlyFields(out, allowed);
 };
 
-// ── IMÓVEIS ───────────────────────────────────────────────
-const IMOVEL_MAP = { casasBanho: 'casas_banho' };
-export const dbImoveis = {
-  async list() {
-    if (!supa) return [];
-    const { data, error } = await supa.from('imoveis').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('list imoveis:', error); return []; }
-    return (data || []).map(r => fromDB(r, IMOVEL_MAP));
-  },
-  async insert(item) {
-    if (!supa) return null;
-    const { data, error } = await supa.from('imoveis').insert(toDB(item, IMOVEL_MAP)).select().single();
-    if (error) { console.error('insert imovel:', error); throw new Error(error.message); }
-    return fromDB(data, IMOVEL_MAP);
-  },
-  async update(id, item) {
-    if (!supa) return null;
-    const payload = toDB(item, IMOVEL_MAP);
-    delete payload.id;
-    delete payload.created_at;
-    const { data, error } = await supa.from('imoveis').update(payload).eq('id', id).select().single();
-    if (error) { console.error('update imovel:', error); throw new Error(error.message); }
-    return fromDB(data, IMOVEL_MAP);
-  },
-  async remove(id) {
-    if (!supa) return;
-    const { error } = await supa.from('imoveis').delete().eq('id', id);
-    if (error) { console.error('delete imovel:', error); throw new Error(error.message); }
-  },
-};
+// ── Campos válidos por tabela (snake_case) ──────────────
+const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao'];
+const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','obs'];
+const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas'];
+const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','prazo','data_inicio','estado','sig_prop','sig_agente'];
+const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 
-// ── CLIENTES ──────────────────────────────────────────────
-export const dbClientes = {
-  async list() {
-    if (!supa) return [];
-    const { data, error } = await supa.from('clientes').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('list clientes:', error); return []; }
-    return data || [];
-  },
-  async insert(item) {
-    if (!supa) return null;
-    const p = { ...item }; if (!p.id || (typeof p.id === 'string' && p.id.length > 18)) delete p.id;
-    const { data, error } = await supa.from('clientes').insert(p).select().single();
-    if (error) { console.error('insert cliente:', error); throw new Error(error.message); }
-    return data;
-  },
-  async update(id, item) {
-    if (!supa) return null;
-    const p = { ...item }; delete p.id; delete p.created_at;
-    const { data, error } = await supa.from('clientes').update(p).eq('id', id).select().single();
-    if (error) { console.error('update cliente:', error); throw new Error(error.message); }
-    return data;
-  },
-  async remove(id) {
-    if (!supa) return;
-    const { error } = await supa.from('clientes').delete().eq('id', id);
-    if (error) { console.error('delete cliente:', error); throw new Error(error.message); }
-  },
-};
-
-// ── TAREFAS ───────────────────────────────────────────────
-export const dbTarefas = {
-  async list() {
-    if (!supa) return [];
-    const { data, error } = await supa.from('tarefas').select('*').order('data', { ascending: true });
-    if (error) { console.error('list tarefas:', error); return []; }
-    return data || [];
-  },
-  async insert(item) {
-    if (!supa) return null;
-    const p = { ...item }; if (!p.id || (typeof p.id === 'string' && p.id.length > 18)) delete p.id;
-    const { data, error } = await supa.from('tarefas').insert(p).select().single();
-    if (error) { console.error('insert tarefa:', error); throw new Error(error.message); }
-    return data;
-  },
-  async update(id, item) {
-    if (!supa) return null;
-    const p = { ...item }; delete p.id; delete p.created_at;
-    const { data, error } = await supa.from('tarefas').update(p).eq('id', id).select().single();
-    if (error) { console.error('update tarefa:', error); throw new Error(error.message); }
-    return data;
-  },
-  async remove(id) {
-    if (!supa) return;
-    const { error } = await supa.from('tarefas').delete().eq('id', id);
-    if (error) { console.error('delete tarefa:', error); throw new Error(error.message); }
-  },
-};
-
-// ── ANGARIAÇÕES ───────────────────────────────────────────
-const ANG_MAP = {
+// ── Mappings appKey -> dbKey ─────────────────────────────
+const M_IMOVEIS = { casasBanho: 'casas_banho' };
+const M_ANG = {
   propNome: 'prop_nome', propNif: 'prop_nif', propEmail: 'prop_email',
   propTelefone: 'prop_telefone', propMorada: 'prop_morada',
   casasBanho: 'casas_banho', tipoMandato: 'tipo_mandato',
   dataInicio: 'data_inicio', sigProp: 'sig_prop', sigAgente: 'sig_agente',
 };
-export const dbAngariacoes = {
-  async list() {
-    if (!supa) return [];
-    const { data, error } = await supa.from('angariacoes').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('list angariacoes:', error); return []; }
-    return (data || []).map(r => fromDB(r, ANG_MAP));
-  },
-  async insert(item) {
-    if (!supa) return null;
-    const { data, error } = await supa.from('angariacoes').insert(toDB(item, ANG_MAP)).select().single();
-    if (error) { console.error('insert angariacao:', error); throw new Error(error.message); }
-    return fromDB(data, ANG_MAP);
-  },
-  async update(id, item) {
-    if (!supa) return null;
-    const payload = toDB(item, ANG_MAP);
-    delete payload.id;
-    delete payload.created_at;
-    const { data, error } = await supa.from('angariacoes').update(payload).eq('id', id).select().single();
-    if (error) { console.error('update angariacao:', error); throw new Error(error.message); }
-    return fromDB(data, ANG_MAP);
-  },
-  async remove(id) {
-    if (!supa) return;
-    const { error } = await supa.from('angariacoes').delete().eq('id', id);
-    if (error) { console.error('delete angariacao:', error); throw new Error(error.message); }
-  },
-};
 
-// ── UTILIZADORES ──────────────────────────────────────────
+// ── Genérico CRUD ─────────────────────────────────────────
+function makeCRUD(table, mapping, allowed, opts = {}) {
+  const orderBy = opts.orderBy || 'created_at';
+  const ascending = opts.ascending ?? false;
+  return {
+    async list() {
+      if (!supa) return [];
+      const { data, error } = await supa.from(table).select('*').order(orderBy, { ascending });
+      if (error) { console.error(`list ${table}:`, error); return []; }
+      return (data || []).map(r => fromDB(r, mapping));
+    },
+    async insert(item) {
+      if (!supa) return null;
+      const payload = toDB(item, mapping, allowed);
+      const { data, error } = await supa.from(table).insert(payload).select().single();
+      if (error) { console.error(`insert ${table}:`, error); throw new Error(error.message); }
+      return fromDB(data, mapping);
+    },
+    async update(id, item) {
+      if (!supa) return null;
+      const payload = toDB(item, mapping, allowed);
+      const { data, error } = await supa.from(table).update(payload).eq('id', id).select().single();
+      if (error) { console.error(`update ${table}:`, error); throw new Error(error.message); }
+      return fromDB(data, mapping);
+    },
+    async remove(id) {
+      if (!supa) return;
+      const { error } = await supa.from(table).delete().eq('id', id);
+      if (error) { console.error(`delete ${table}:`, error); throw new Error(error.message); }
+    },
+  };
+}
+
+// ── Exports CRUD ──────────────────────────────────────────
+export const dbImoveis = makeCRUD('imoveis', M_IMOVEIS, F_IMOVEIS);
+export const dbClientes = makeCRUD('clientes', {}, F_CLIENTES);
+export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
+export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
+
 export const dbUtilizadores = {
-  async list() {
-    if (!supa) return [];
-    const { data, error } = await supa.from('utilizadores').select('*').order('created_at', { ascending: true });
-    if (error) { console.error('list utilizadores:', error); return []; }
-    return data || [];
-  },
-  async insert(item) {
-    if (!supa) return null;
-    const p = { ...item }; if (!p.id || (typeof p.id === 'string' && p.id.length > 18)) delete p.id;
-    const { data, error } = await supa.from('utilizadores').insert(p).select().single();
-    if (error) { console.error('insert utilizador:', error); throw new Error(error.message); }
-    return data;
-  },
-  async update(id, item) {
-    if (!supa) return null;
-    const p = { ...item }; delete p.id; delete p.created_at;
-    const { data, error } = await supa.from('utilizadores').update(p).eq('id', id).select().single();
-    if (error) { console.error('update utilizador:', error); throw new Error(error.message); }
-    return data;
-  },
-  async remove(id) {
-    if (!supa) return;
-    const { error } = await supa.from('utilizadores').delete().eq('id', id);
-    if (error) { console.error('delete utilizador:', error); throw new Error(error.message); }
-  },
+  ...makeCRUD('utilizadores', {}, F_UTILIZADORES, { orderBy: 'created_at', ascending: true }),
   async findByLogin(email, password) {
     if (!supa) return null;
     const { data, error } = await supa.from('utilizadores').select('*').eq('email', email).eq('password', password).maybeSingle();
