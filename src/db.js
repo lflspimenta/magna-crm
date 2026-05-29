@@ -95,13 +95,96 @@ export const dbClientes = makeCRUD('clientes', {}, F_CLIENTES);
 export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
 export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
 
+// ── UTILIZADORES via Supabase Auth ────────────────────────
+// Dados do perfil (nome, cargo, avatar, role) vivem na tabela 'utilizadores'
+// ligada ao auth.users por user_id
 export const dbUtilizadores = {
-  ...makeCRUD('utilizadores', {}, F_UTILIZADORES, { orderBy: 'created_at', ascending: true }),
-  async findByLogin(email, password) {
+  // Login com e-mail e password reais
+  async signIn(email, password) {
+    if (!supa) throw new Error('Supabase não configurado');
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    // Carregar o perfil (nome, cargo, etc) da tabela utilizadores
+    const profile = await dbUtilizadores.getProfile(data.user.id);
+    return { ...data.user, ...profile, authId: data.user.id };
+  },
+
+  // Logout
+  async signOut() {
+    if (!supa) return;
+    await supa.auth.signOut();
+  },
+
+  // Recuperar sessão (chamado no arranque da app)
+  async getSession() {
     if (!supa) return null;
-    const { data, error } = await supa.from('utilizadores').select('*').eq('email', email).eq('password', password).maybeSingle();
-    if (error) { console.error('find login:', error); return null; }
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) return null;
+    const profile = await dbUtilizadores.getProfile(session.user.id);
+    return { ...session.user, ...profile, authId: session.user.id };
+  },
+
+  // Recuperar password — envia email com link
+  async resetPassword(email) {
+    if (!supa) throw new Error('Supabase não configurado');
+    const { error } = await supa.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/?reset=true',
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  // Atualizar password (após clicar no link de recuperação)
+  async updatePassword(newPassword) {
+    if (!supa) throw new Error('Supabase não configurado');
+    const { error } = await supa.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(error.message);
+  },
+
+  // ── Gestão de perfis (tabela utilizadores) ──
+  async getProfile(authId) {
+    if (!supa) return null;
+    const { data } = await supa.from('utilizadores').select('*').eq('auth_id', authId).maybeSingle();
     return data;
+  },
+
+  async list() {
+    if (!supa) return [];
+    const { data, error } = await supa.from('utilizadores').select('*').order('created_at', { ascending: true });
+    if (error) { console.error('list utilizadores:', error); return []; }
+    return data || [];
+  },
+
+  // Criar novo utilizador completo (Auth + perfil) — só admin
+  async create({ email, password, nome, cargo, avatar, role }) {
+    if (!supa) throw new Error('Supabase não configurado');
+    // 1. Criar conta no Auth via signUp (cliente browser não tem permissão admin)
+    const { data, error } = await supa.auth.signUp({
+      email, password,
+      options: { data: { nome, cargo } }
+    });
+    if (error) throw new Error(error.message);
+    // 2. Criar perfil na tabela utilizadores
+    const profile = { auth_id: data.user.id, email, nome, cargo, avatar, role };
+    const { data: created, error: profErr } = await supa.from('utilizadores').insert(profile).select().single();
+    if (profErr) { console.error('create profile:', profErr); throw new Error(profErr.message); }
+    return created;
+  },
+
+  async updateProfile(id, payload) {
+    if (!supa) return null;
+    const allowed = ['nome', 'cargo', 'avatar', 'role'];
+    const p = {};
+    for (const k of allowed) if (k in payload) p[k] = payload[k];
+    const { data, error } = await supa.from('utilizadores').update(p).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async remove(id) {
+    if (!supa) return;
+    // Apaga só o perfil; o auth.user fica (só admin pode apagar via API admin)
+    const { error } = await supa.from('utilizadores').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   },
 };
 
