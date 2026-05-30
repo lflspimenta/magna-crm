@@ -95,9 +95,9 @@ function Funil({ mob }) {
   };
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+ <div style={{ maxWidth: 1200 }}>
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: mob ? 20 : 32 }}>
         <p style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Funil de Negócios</p>
         <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: mob ? 28 : 36, fontWeight: 300, color: G.text }}>
           Pipeline de Leads
@@ -105,19 +105,239 @@ function Funil({ mob }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${G.border}`, marginBottom: 32 }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${G.border}`, marginBottom: mob ? 20 : 32, overflowX: "auto" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: "12px 0", marginRight: 32,
+            padding: "12px 0", marginRight: mob ? 20 : 32,
             fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase",
             background: "none", border: "none",
             borderBottom: `1px solid ${tab === t.id ? G.gold1 : "transparent"}`,
             color: tab === t.id ? G.gold1 : G.textMuted,
             cursor: "pointer", position: "relative", bottom: -1,
-            transition: "all 0.2s"
+            transition: "all 0.2s", whiteSpace: "nowrap", flexShrink: 0
           }}>{t.label}</button>
         ))}
       </div>
+
+      {/* Contadores */}
+      <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(3,1fr)" : "repeat(5,1fr)", gap: mob ? 6 : 8, marginBottom: mob ? 20 : 32 }}>
+        {ESTADOS.map(e => (
+          <div key={e} style={{ background: G.surface, border: `1px solid ${G.border}`, borderTop: `2px solid ${ESTADO_COLOR[e]}`, padding: mob ? "10px 8px" : "16px 14px" }}>
+            <p style={{ fontSize: mob ? 22 : 28, fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, color: G.text, marginBottom: 2 }}>
+              {leadsByEstado(e).length}
+            </p>
+            <p style={{ fontSize: mob ? 8 : 10, letterSpacing: "0.1em", textTransform: "uppercase", color: G.textDim }}>
+              {ESTADO_LABEL[e]}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+          <div className="spinner" style={{ width: 28, height: 28, borderWidth: 2, borderColor: `${G.gold1}30`, borderTopColor: G.gold1 }}/>
+        </div>
+      ) : leads.length === 0 ? (
+        <div style={{ textAlign: "center", padding: mob ? 40 : 80, color: G.textDim }}>
+          <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 300, marginBottom: 8 }}>Sem leads ainda</p>
+          <p style={{ fontSize: 13 }}>Os pedidos do site aparecerão aqui automaticamente.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: selected && !mob ? "1fr 360px" : "1fr", gap: 24 }}>
+          {/* Lista */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {leads.map(lead => (
+              <div key={lead.id} onClick={() => openLead(lead)} style={{
+                background: selected?.id === lead.id ? G.surface2 : G.surface,
+                border: `1px solid ${selected?.id === lead.id ? G.gold1 + "40" : G.border}`,
+                padding: mob ? "12px 14px" : "16px 20px",
+                cursor: "pointer", transition: "all 0.2s",
+                display: "flex", alignItems: "center", gap: mob ? 10 : 16
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: ESTADO_COLOR[lead.estado || "novo"], flexShrink: 0 }}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: mob ? 13 : 14, fontWeight: 500, color: G.text, marginBottom: 2 }}>{lead.nome}</p>
+                  <p style={{ fontSize: mob ? 11 : 12, color: G.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {lead.email} {lead.telefone ? `· ${lead.telefone}` : ""}
+                  </p>
+                  {lead.atribuido_a && <p style={{ fontSize: 10, color: G.gold1, marginTop: 2 }}>→ {lead.atribuido_a}</p>}
+                </div>
+                {!mob && <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                  <select
+                    value={lead.estado || "novo"}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); updateEstado(lead, e.target.value); }}
+                    style={{
+                      background: G.surface3, border: `1px solid ${G.border}`,
+                      color: ESTADO_COLOR[lead.estado || "novo"],
+                      fontSize: 11, letterSpacing: "0.1em", padding: "4px 8px",
+                      cursor: "pointer", outline: "none"
+                    }}
+                  >
+                    {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                  </select>
+                  <p style={{ fontSize: 11, color: G.textDim, whiteSpace: "nowrap" }}>
+                    {lead.created_at ? new Date(lead.created_at).toLocaleDateString("pt-PT") : "—"}
+                  </p>
+                </div>}
+                {mob && <select
+                  value={lead.estado || "novo"}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => { e.stopPropagation(); updateEstado(lead, e.target.value); }}
+                  style={{
+                    background: G.surface3, border: `1px solid ${G.border}`,
+                    color: ESTADO_COLOR[lead.estado || "novo"],
+                    fontSize: 10, padding: "3px 6px",
+                    cursor: "pointer", outline: "none", flexShrink: 0
+                  }}
+                >
+                  {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                </select>}
+              </div>
+            ))}
+          </div>
+
+          {/* Detalhe — em mobile abre como modal */}
+          {selected && (
+            mob ? (
+              <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setSelected(null)}>
+                <div className="modal" style={{ maxHeight: "85vh", overflowY: "auto" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
+                    <div>
+                      <p style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 6 }}>Lead</p>
+                      <p style={{ fontSize: 20, fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, color: G.text }}>{selected.nome}</p>
+                    </div>
+                    <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 18 }}>✕</button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                    {[
+                      ["Email", selected.email],
+                      ["Telefone", selected.telefone],
+                      ["Localização", selected.localizacao || selected.zona_interesse],
+                      ["Tipologia", selected.tipologia],
+                      ["Orçamento", selected.orcamento],
+                      ["Modalidade", selected.modalidade],
+                      ["Finalidade", selected.finalidade],
+                      ["Situação actual", selected.situacao_atual],
+                      ["Serviço", selected.servico_interesse],
+                      ["Descrição", selected.descricao],
+                    ].filter(([_, v]) => v).map(([label, value]) => (
+                      <div key={label} style={{ borderBottom: `1px solid ${G.border}`, paddingBottom: 10 }}>
+                        <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.textDim, marginBottom: 3 }}>{label}</p>
+                        <p style={{ fontSize: 13, color: G.text }}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Atribuído a */}
+                  <div style={{ marginBottom: 16 }}>
+                    <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Atribuído a</p>
+                    <select
+                      value={selected.atribuido_a || ""}
+                      onChange={async e => {
+                        const val = e.target.value;
+                        try {
+                          await currentDB.update(selected.id, { ...selected, atribuido_a: val });
+                          setLeads(prev => prev.map(l => l.id === selected.id ? { ...l, atribuido_a: val } : l));
+                          setSelected(s => ({ ...s, atribuido_a: val }));
+                        } catch(err) { alert("Erro ao atribuir: " + err.message); }
+                      }}
+                      style={{ width: "100%", background: G.surface2, border: `1px solid ${G.border}`, color: G.text, fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: "10px 12px", outline: "none" }}
+                    >
+                      <option value="">— Não atribuído —</option>
+                      <option value="Cátia Barbosa">Cátia Barbosa</option>
+                      <option value="Ana Costa">Ana Costa</option>
+                    </select>
+                  </div>
+                  {/* Notas */}
+                  <div style={{ marginBottom: 16 }}>
+                    <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Notas internas</p>
+                    <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Adiciona notas sobre este lead..."
+                      style={{ width: "100%", height: 80, background: G.surface2, border: `1px solid ${G.border}`, color: G.text, fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: 12, resize: "none", outline: "none", lineHeight: 1.6 }}
+                    />
+                    <button onClick={saveNotas} disabled={saving} style={{ width: "100%", padding: "10px", background: G.gold1, color: G.bg, border: "none", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, marginTop: 8 }}>
+                      {saving ? "A guardar..." : "Guardar notas"}
+                    </button>
+                  </div>
+                  <button onClick={() => converterEmCliente(selected)} style={{ width: "100%", padding: "10px", background: "none", border: `1px solid ${G.green}40`, color: G.green, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>
+                    Converter em Cliente
+                  </button>
+                  <button onClick={() => deleteLead(selected)} style={{ width: "100%", padding: "8px", background: "none", border: `1px solid ${G.red}20`, color: G.red, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer" }}>
+                    Eliminar lead
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: G.surface, border: `1px solid ${G.border}`, padding: 24, alignSelf: "start", position: "sticky", top: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 24 }}>
+                  <div>
+                    <p style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 6 }}>Lead</p>
+                    <p style={{ fontSize: 20, fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, color: G.text }}>{selected.nome}</p>
+                  </div>
+                  <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 18 }}>✕</button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                  {[
+                    ["Email", selected.email],
+                    ["Telefone", selected.telefone],
+                    ["Localização", selected.localizacao || selected.zona_interesse],
+                    ["Tipologia", selected.tipologia],
+                    ["Orçamento", selected.orcamento],
+                    ["Modalidade", selected.modalidade],
+                    ["Finalidade", selected.finalidade],
+                    ["Situação actual", selected.situacao_atual],
+                    ["Serviço", selected.servico_interesse],
+                    ["Descrição", selected.descricao],
+                  ].filter(([_, v]) => v).map(([label, value]) => (
+                    <div key={label} style={{ borderBottom: `1px solid ${G.border}`, paddingBottom: 10 }}>
+                      <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.textDim, marginBottom: 3 }}>{label}</p>
+                      <p style={{ fontSize: 13, color: G.text }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Atribuído a */}
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Atribuído a</p>
+                  <select
+                    value={selected.atribuido_a || ""}
+                    onChange={async e => {
+                      const val = e.target.value;
+                      try {
+                        await currentDB.update(selected.id, { ...selected, atribuido_a: val });
+                        setLeads(prev => prev.map(l => l.id === selected.id ? { ...l, atribuido_a: val } : l));
+                        setSelected(s => ({ ...s, atribuido_a: val }));
+                      } catch(err) { alert("Erro ao atribuir: " + err.message); }
+                    }}
+                    style={{ width: "100%", background: G.surface2, border: `1px solid ${G.border}`, color: G.text, fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: "10px 12px", outline: "none" }}
+                  >
+                    <option value="">— Não atribuído —</option>
+                    <option value="Cátia Barbosa">Cátia Barbosa</option>
+                    <option value="Ana Costa">Ana Costa</option>
+                  </select>
+                </div>
+                {/* Notas internas */}
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Notas internas</p>
+                  <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Adiciona notas sobre este lead..."
+                    style={{ width: "100%", height: 100, background: G.surface2, border: `1px solid ${G.border}`, color: G.text, fontFamily: "'DM Sans',sans-serif", fontSize: 13, padding: 12, resize: "none", outline: "none", lineHeight: 1.6 }}
+                  />
+                  <button onClick={saveNotas} disabled={saving} style={{ width: "100%", padding: "10px", background: G.gold1, color: G.bg, border: "none", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, marginTop: 8 }}>
+                    {saving ? "A guardar..." : "Guardar notas"}
+                  </button>
+                </div>
+                <button onClick={() => converterEmCliente(selected)} style={{ width: "100%", padding: "10px", background: "none", border: `1px solid ${G.green}40`, color: G.green, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>
+                  Converter em Cliente
+                </button>
+                <button onClick={() => deleteLead(selected)} style={{ width: "100%", padding: "8px", background: "none", border: `1px solid ${G.red}20`, color: G.red, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", cursor: "pointer" }}>
+                  Eliminar lead
+                </button>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
       {/* Contadores */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 32 }}>
@@ -214,7 +434,31 @@ function Funil({ mob }) {
                   </div>
                 ))}
               </div>
-
+{/* Atribuído a */}
+<div style={{ marginBottom: 16 }}>
+  <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Atribuído a</p>
+  <select
+    value={selected.atribuido_a || ""}
+    onChange={async e => {
+      const val = e.target.value;
+      try {
+        await currentDB.update(selected.id, { ...selected, atribuido_a: val });
+        setLeads(prev => prev.map(l => l.id === selected.id ? { ...l, atribuido_a: val } : l));
+        setSelected(s => ({ ...s, atribuido_a: val }));
+      } catch(err) { alert("Erro ao atribuir: " + err.message); }
+    }}
+    style={{
+      width: "100%", background: G.surface2,
+      border: `1px solid ${G.border}`, color: G.text,
+      fontFamily: "'DM Sans',sans-serif", fontSize: 13,
+      padding: "10px 12px", outline: "none"
+    }}
+  >
+    <option value="">— Não atribuído —</option>
+    <option value="Cátia Barbosa">Cátia Barbosa</option>
+    <option value="Ana Costa">Ana Costa</option>
+  </select>
+</div>
               {/* Notas internas */}
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Notas internas</p>
