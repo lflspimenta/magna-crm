@@ -221,9 +221,9 @@ export async function deleteFoto(url) {
   if (error) console.warn('delete foto:', error.message);
 }
 // ── Leads: três pilares ───────────────────────────────────
-const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado'];
-const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado'];
-const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado'];
+const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado','atribuido_a'];
+const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado','atribuido_a'];
+const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado','atribuido_a'];
 
 export const dbLeadsGestao    = makeCRUD('leads_gestao',    {}, F_LEADS_GESTAO);
 export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
