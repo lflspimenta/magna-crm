@@ -67,6 +67,26 @@ function Funil({ mob }) {
     } catch(e) { alert("Erro ao eliminar: " + e.message); }
   };
 
+  const converterEmCliente = async (lead) => {
+    if (!confirm(`Converter ${lead.nome} em cliente?`)) return;
+    try {
+      await dbClientes.insert({
+        nome: lead.nome,
+        email: lead.email,
+        telefone: lead.telefone,
+        interesse: lead.finalidade || lead.modalidade || 'Comprar',
+        orcamento: lead.orcamento || '',
+        temperatura: 'Quente',
+        bairros: lead.zona_interesse || lead.localizacao || '',
+        obs: lead.descricao || lead.notas || '',
+      });
+      await updateEstado(lead, 'fechado');
+      setSelected(null);
+      alert(`✓ ${lead.nome} adicionado aos Clientes.`);
+    } catch(e) {
+      alert('Erro ao converter: ' + e.message);
+    }
+  };
   const leadsByEstado = (estado) => leads.filter(l => l.estado === estado);
 
   const openLead = (lead) => {
@@ -222,6 +242,15 @@ function Funil({ mob }) {
                 </button>
               </div>
 
+             {/* Converter em Cliente */}
+              <button onClick={() => converterEmCliente(selected)} style={{
+                width: "100%", padding: "10px",
+                background: "none", border: `1px solid ${G.green}40`,
+                color: G.green, fontSize: 11, letterSpacing: "0.15em",
+                textTransform: "uppercase", cursor: "pointer", marginBottom: 8
+              }}>
+                Converter em Cliente
+              </button>
               {/* Eliminar */}
               <button onClick={() => deleteLead(selected)} style={{
                 width: "100%", padding: "8px",
