@@ -189,6 +189,7 @@ function Funil({ mob }) {
                     color: ESTADO_COLOR[lead.estado || "novo"],
                     fontSize: 10, padding: "3px 6px",
                     cursor: "pointer", outline: "none", flexShrink: 0
+                    maxWidth: 100
                   }}
                 >
                   {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
