@@ -75,7 +75,7 @@ function Funil({ mob }) {
         email: lead.email,
         telefone: lead.telefone,
         interesse: lead.finalidade || lead.modalidade || 'Comprar',
-        orcamento: lead.orcamento || '',
+       orcamento: 0,
         temperatura: 'Quente',
         bairros: lead.zona_interesse || lead.localizacao || '',
         obs: lead.descricao || lead.notas || '',
