@@ -181,16 +181,17 @@ function Funil({ mob }) {
                   </p>
                 </div>}
                 {mob && <select
-                  value={lead.estado || "novo"}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => { e.stopPropagation(); updateEstado(lead, e.target.value); }}
-                  style={{
-                    background: G.surface3, border: `1px solid ${G.border}`,
-                    color: ESTADO_COLOR[lead.estado || "novo"],
-                    fontSize: 10, padding: "3px 6px",
-                    cursor: "pointer", outline: "none", flexShrink: 0
-                    maxWidth: 100
-                  }}
+  value={lead.estado || "novo"}
+  onClick={e => e.stopPropagation()}
+  onChange={e => { e.stopPropagation(); updateEstado(lead, e.target.value); }}
+  style={{
+    background: G.surface3, border: `1px solid ${G.border}`,
+    color: ESTADO_COLOR[lead.estado || "novo"],
+    fontSize: 10, padding: "3px 6px",
+    cursor: "pointer", outline: "none", flexShrink: 0,
+    maxWidth: 100
+  }}
+>
                 >
                   {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
                 </select>}
