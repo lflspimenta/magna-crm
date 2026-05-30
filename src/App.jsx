@@ -434,31 +434,7 @@ function Funil({ mob }) {
                   </div>
                 ))}
               </div>
-{/* Atribuído a */}
-<div style={{ marginBottom: 16 }}>
-  <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Atribuído a</p>
-  <select
-    value={selected.atribuido_a || ""}
-    onChange={async e => {
-      const val = e.target.value;
-      try {
-        await currentDB.update(selected.id, { ...selected, atribuido_a: val });
-        setLeads(prev => prev.map(l => l.id === selected.id ? { ...l, atribuido_a: val } : l));
-        setSelected(s => ({ ...s, atribuido_a: val }));
-      } catch(err) { alert("Erro ao atribuir: " + err.message); }
-    }}
-    style={{
-      width: "100%", background: G.surface2,
-      border: `1px solid ${G.border}`, color: G.text,
-      fontFamily: "'DM Sans',sans-serif", fontSize: 13,
-      padding: "10px 12px", outline: "none"
-    }}
-  >
-    <option value="">— Não atribuído —</option>
-    <option value="Cátia Barbosa">Cátia Barbosa</option>
-    <option value="Ana Costa">Ana Costa</option>
-  </select>
-</div>
+
               {/* Notas internas */}
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: G.gold1, marginBottom: 8 }}>Notas internas</p>
