@@ -5777,26 +5777,24 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Mobile layout ── */}
+   {/* ── Mobile layout ── */}
       {mob && (
         <div style={{display:"flex",flexDirection:"column",height:"100vh",background:G.bg,overflow:"hidden"}}>
           {/* Top bar */}
           <div style={{background:G.surface,borderBottom:`1px solid ${G.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
             <Logo/>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-  <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:3}}>
-    <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
-    <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
-    <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
-  </button>
-  <div style={{width:32,height:32,borderRadius:"50%",...}}>{user.avatar}</div>
-  <button onClick={handleLogout} ...>
+              <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:3}}>
+                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
+                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
+                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
+              </button>
+              <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:"#0E0E0F"}}>{user.avatar}</div>
+              <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"6px",display:"flex"}}>
                 <Ic n="logout" s={18} c={G.red}/>
               </button>
             </div>
           </div>
-
           {/* Main scrollable content */}
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
