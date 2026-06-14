@@ -5382,7 +5382,7 @@ const Clientes=({clientes,setClientes,mob})=>{
           </div>
         ))}
       </div>
-      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm(detailCli);setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob}/>}
+      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob}/>}
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div style={{gridColumn:"1/-1"}}><Field label="Nome completo"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do cliente"/></Field></div>
