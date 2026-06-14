@@ -5162,7 +5162,111 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
 };
 
 // ── CLIENTES ──────────────────────────────────────────────────
-const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",obs:""};
+const TIPOLOGIAS = {
+  'Apartamento': ['T0 / Estúdio', 'T1', 'T2', 'T3', 'T4', 'T5+'],
+  'Moradia':     ['T2', 'T3', 'T4', 'T5+'],
+  'Comercial':   ['Loja', 'Escritório', 'Armazém', 'Estabelecimento'],
+  'Terreno':     ['Urbano', 'Rústico'],
+  'Outros':      ['Garagem', 'Quinta']
+};
+
+// Combina categoria + tipologia em string única
+const tipoStr = (categoria, tip) => {
+  if (categoria === 'Outros') return tip;
+  if (categoria === 'Terreno') return `Terreno ${tip}`;
+  return `${categoria} ${tip}`;
+};
+
+const TipologiaSelector = ({ value = [], onChange }) => {
+  const [open, setOpen] = useState({});
+  const selected = Array.isArray(value) ? value : [];
+
+  const toggle = (categoria, tip) => {
+    const s = tipoStr(categoria, tip);
+    if (selected.includes(s)) onChange(selected.filter(x => x !== s));
+    else onChange([...selected, s]);
+  };
+  const isSelected = (categoria, tip) => selected.includes(tipoStr(categoria, tip));
+  const countByCategoria = (cat) =>
+    selected.filter(s => {
+      if (cat === 'Outros') return TIPOLOGIAS.Outros.includes(s);
+      if (cat === 'Terreno') return s.startsWith('Terreno ');
+      return s.startsWith(cat + ' ');
+    }).length;
+
+  return (
+    <div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+        {Object.keys(TIPOLOGIAS).map(cat => {
+          const isOpen = open[cat];
+          const count = countByCategoria(cat);
+          return (
+            <button key={cat} type="button" onClick={() => setOpen(p => ({...p, [cat]: !p[cat]}))}
+              style={{
+                background: isOpen ? `${G.gold1}20` : G.surface2,
+                border: `1px solid ${isOpen ? G.gold1 : G.border}`,
+                borderRadius: 6, padding: "6px 12px",
+                color: isOpen ? G.gold1 : G.textMuted, cursor: "pointer",
+                fontSize: 12, fontFamily: "'DM Sans',sans-serif",
+                display: "flex", alignItems: "center", gap: 6
+              }}>
+              {cat} {count > 0 && <span style={{background:G.gold1,color:'#0E0E0F',borderRadius:8,padding:'0 6px',fontSize:10,fontWeight:600}}>{count}</span>}
+              <span style={{fontSize:10}}>{isOpen ? "▾" : "▸"}</span>
+            </button>
+          );
+        })}
+      </div>
+      {Object.entries(TIPOLOGIAS).map(([cat, tips]) => {
+        if (!open[cat]) return null;
+        return (
+          <div key={cat} style={{background:G.surface2,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+            <p style={{fontSize:10,color:G.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:".3px"}}>{cat}</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {tips.map(tip => {
+                const sel = isSelected(cat, tip);
+                return (
+                  <button key={tip} type="button" onClick={() => toggle(cat, tip)}
+                    style={{
+                      background: sel ? G.gold1 : "transparent",
+                      border: `1px solid ${sel ? G.gold1 : G.border}`,
+                      borderRadius: 14, padding: "4px 12px",
+                      color: sel ? "#0E0E0F" : G.textMuted, cursor: "pointer",
+                      fontSize: 12, fontWeight: sel ? 500 : 400,
+                      fontFamily: "'DM Sans',sans-serif"
+                    }}>{tip}</button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {selected.length > 0 && (
+        <div style={{background:`${G.gold1}10`,border:`1px solid ${G.gold1}30`,borderRadius:8,padding:"10px 12px",marginTop:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <p style={{fontSize:10,color:G.gold1,textTransform:"uppercase",letterSpacing:".3px",fontWeight:500}}>
+              {selected.length} {selected.length===1?"tipologia seleccionada":"tipologias seleccionadas"}
+            </p>
+            <button type="button" onClick={() => onChange([])}
+              style={{background:"none",border:"none",color:G.red,fontSize:11,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              × Limpar
+            </button>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {selected.map(s => (
+              <span key={s} style={{background:G.surface3,color:G.text,fontSize:11,padding:"3px 9px",borderRadius:10,display:"inline-flex",alignItems:"center",gap:5}}>
+                {s}
+                <button type="button" onClick={() => onChange(selected.filter(x => x !== s))}
+                  style={{background:"none",border:"none",color:G.textDim,cursor:"pointer",padding:0,fontSize:13,lineHeight:1}}>×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:""};
 // ── FICHA DETALHADA DO CLIENTE ────────────────────────────────
 const partilharCliente = async (c) => {
   const texto = `👤 ${c.nome}\n📞 ${c.telefone||"—"}\n✉️ ${c.email||"—"}\n💼 ${c.interesse} · Até ${fmtFull(c.orcamento)}${c.interesse==="Arrendar"?"/mês":""}\n📍 ${c.bairros||"—"}\n${c.obs?"\n"+c.obs:""}\n\nMagna Group Real Estate`;
@@ -5205,9 +5309,18 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
       </div>
 
       {/* Zonas */}
-      {c.bairros && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+     {c.bairros && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
         <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Zonas de Interesse</p>
         <p style={{fontSize:14,color:G.text}}>📍 {c.bairros}</p>
+      </div>}
+
+      {c.tipologia && c.tipologia.length > 0 && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+        <p style={{fontSize:11,color:G.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:".3px"}}>Tipologia Pretendida</p>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {c.tipologia.map(t => (
+            <span key={t} style={{background:`${G.gold1}15`,color:G.gold1,fontSize:12,padding:"4px 10px",borderRadius:12,border:`1px solid ${G.gold1}30`}}>{t}</span>
+          ))}
+        </div>
       </div>}
 
       {/* Observações */}
@@ -5253,7 +5366,7 @@ const Clientes=({clientes,setClientes,mob})=>{
                 <div><p style={{fontWeight:500,fontSize:15}}>{c.nome}</p><span className={`tag badge-${c.temperatura.toLowerCase()}`}>{c.temperatura}</span></div>
               </div>
               <div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
-                <button onClick={()=>{setForm(c);setEditId(c.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="edit" s={14} c={G.textMuted}/></button>
+              onClick={()=>{setForm({...c,tipologia:c.tipologia||[]});setEditId(c.id);setMod(true);}}
                 <button onClick={()=>eliminar(c)} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="trash" s={14} c={G.red}/></button>
               </div>
             </div>
@@ -5275,8 +5388,13 @@ const Clientes=({clientes,setClientes,mob})=>{
           <div style={{gridColumn:"1/-1"}}><Field label="Nome completo"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do cliente"/></Field></div>
           <Field label="E-mail"><input value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="email@exemplo.pt"/></Field>
           <Field label="Telefone"><input value={form.telefone} onChange={e=>setForm(p=>({...p,telefone:e.target.value}))} placeholder="912 345 678"/></Field>
-          <Field label="Interesse"><select value={form.interesse} onChange={e=>setForm(p=>({...p,interesse:e.target.value}))}><option>Comprar</option><option>Arrendar</option><option>Vender</option></select></Field>
+         <Field label="Interesse"><select value={form.interesse} onChange={e=>setForm(p=>({...p,interesse:e.target.value}))}><option>Comprar</option><option>Arrendar</option><option>Vender</option></select></Field>
           <Field label="Temperatura"><select value={form.temperatura} onChange={e=>setForm(p=>({...p,temperatura:e.target.value}))}><option>Quente</option><option>Morno</option><option>Frio</option></select></Field>
+          <div style={{gridColumn:"1/-1"}}>
+            <Field label="Tipologia pretendida (opcional)">
+              <TipologiaSelector value={form.tipologia||[]} onChange={v=>setForm(p=>({...p,tipologia:v}))}/>
+            </Field>
+          </div>
           <Field label="Orçamento (€)"><input type="number" value={form.orcamento} onChange={e=>setForm(p=>({...p,orcamento:e.target.value}))}/></Field>
           <Field label="Zonas de Interesse"><input value={form.bairros} onChange={e=>setForm(p=>({...p,bairros:e.target.value}))} placeholder="Ex: Chiado, Príncipe Real"/></Field>
           <div style={{gridColumn:"1/-1"}}><Field label="Observações"><textarea rows={3} value={form.obs} onChange={e=>setForm(p=>({...p,obs:e.target.value}))} placeholder="Notas sobre o cliente..."/></Field></div>
