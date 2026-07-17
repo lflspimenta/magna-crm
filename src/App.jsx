@@ -3052,6 +3052,52 @@ let _apiKey = "";
 const setApiKey = (k) => { _apiKey = k.trim(); };
 const getApiKey = () => _apiKey;
 
+// ── Extracção de dados de documentos (Fase 2 - Proprietários) ──
+// Envia um documento (PDF/imagem) em base64 e devolve o texto da resposta
+const callClaudeDoc = async (base64Data, mediaType, prompt) => {
+  const isPdf = mediaType === "application/pdf";
+  const contentBlock = isPdf
+    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } }
+    : { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } };
+
+  const body = JSON.stringify({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1500,
+    messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }],
+  });
+
+  const res = await fetch("/api/claude", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || String(data.error));
+  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  if (!text) throw new Error("Resposta vazia da análise.");
+  return text;
+};
+
+// Prompts de extracção por tipo de documento
+const PROMPTS_EXTRACAO = {
+  "Caderneta Predial": "Extrai desta caderneta predial os seguintes dados em JSON (usa null se não encontrares): {\"artigo_matricial\":\"...\",\"fracao\":\"...\",\"area_total\":\"...\",\"area_privativa\":\"...\",\"afetacao\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}],\"morada_predio\":\"...\",\"data_emissao\":\"AAAA-MM-DD\"}. A data de emissão costuma aparecer no rodapé ou cabeçalho do documento. Responde APENAS com o JSON, sem markdown nem explicações.",
+  "Certidão Permanente": "Extrai desta certidão permanente os seguintes dados em JSON (usa null se não encontrares): {\"descricao_predial\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"onus_encargos\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}]}. A validade é 6 meses após a data de emissão. Responde APENAS com o JSON.",
+  "Certificado Energético": "Extrai deste certificado energético os seguintes dados em JSON (usa null se não encontrares): {\"classe_energetica\":\"...\",\"numero_ce\":\"...\",\"validade\":\"AAAA-MM-DD\",\"morada\":\"...\"}. Responde APENAS com o JSON.",
+  "CMI": "Extrai deste contrato de mediação imobiliária os seguintes dados em JSON (usa null se não encontrares): {\"proprietario\":\"...\",\"nif_proprietario\":\"...\",\"mediadora\":\"...\",\"prazo_meses\":0,\"data_assinatura\":\"AAAA-MM-DD\",\"validade\":\"AAAA-MM-DD\",\"comissao\":\"...\",\"regime\":\"...\"}. A validade é a data de assinatura mais o prazo. Responde APENAS com o JSON.",
+  "Documento de Identificação": "Extrai deste documento de identificação os seguintes dados em JSON (usa null se não encontrares): {\"nome_completo\":\"...\",\"nif\":\"...\",\"numero_documento\":\"...\",\"validade\":\"AAAA-MM-DD\",\"data_nascimento\":\"AAAA-MM-DD\"}. Responde APENAS com o JSON.",
+  "Procuração": "Extrai desta procuração os seguintes dados em JSON (usa null se não encontrares): {\"outorgante\":\"...\",\"nif_outorgante\":\"...\",\"procurador\":\"...\",\"nif_procurador\":\"...\",\"poderes\":\"...\",\"validade\":\"AAAA-MM-DD\",\"data\":\"AAAA-MM-DD\"}. Responde APENAS com o JSON.",
+  "Licença de Utilização": "Extrai desta licença de utilização os seguintes dados em JSON (usa null se não encontrares): {\"numero_licenca\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"camara_municipal\":\"...\",\"finalidade\":\"...\",\"morada\":\"...\"}. Responde APENAS com o JSON.",
+  "Ficha Técnica de Habitação": "Extrai desta ficha técnica de habitação os seguintes dados em JSON (usa null se não encontrares): {\"numero_ficha\":\"...\",\"data\":\"AAAA-MM-DD\",\"morada\":\"...\",\"promotor\":\"...\"}. Responde APENAS com o JSON.",
+};
+
+// Converte um File em base64 (sem o prefixo data:)
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result.split(",")[1]);
+  reader.onerror = () => reject(new Error("Falha ao ler o ficheiro"));
+  reader.readAsDataURL(file);
+});
+
 const callClaude = async (prompt, model = "claude-sonnet-4-6", useSearch = true) => {
   const key = getApiKey();
 
@@ -5403,6 +5449,9 @@ const Proprietarios = ({ mob }) => {
   const [docMod, setDocMod] = useState(false);
   const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
   const [uploading, setUploading] = useState(false);
+  const [analisando, setAnalisando] = useState(false);
+  const [extraidos, setExtraidos] = useState(null);
+  const [avisoNif, setAvisoNif] = useState(null);
 
   useEffect(() => {
     if (!dbReady) return;
@@ -5446,6 +5495,47 @@ const Proprietarios = ({ mob }) => {
     } catch (e) { alert("Erro: " + e.message); }
   };
 
+  // Analisar o documento com IA e pré-preencher dados
+  const analisarDoc = async (file, tipo) => {
+    const prompt = PROMPTS_EXTRACAO[tipo];
+    if (!prompt || !file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      setAvisoNif("Ficheiro grande demais para análise automática (máx. 4MB). Preenche os dados manualmente.");
+      return;
+    }
+    setAnalisando(true); setExtraidos(null); setAvisoNif(null);
+    try {
+      const b64 = await fileToBase64(file);
+      const mediaType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const raw = await callClaudeDoc(b64, mediaType, prompt);
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const dados = JSON.parse(clean);
+      setExtraidos(dados);
+      // Pré-preencher a validade se extraída
+      let validadeExtraida = dados.validade || null;
+      if (!validadeExtraida && dados.data_emissao) {
+        const em = new Date(dados.data_emissao);
+        if (tipo === "Certidão Permanente") validadeExtraida = new Date(em.setMonth(em.getMonth() + 6)).toISOString().slice(0,10);
+        if (tipo === "Caderneta Predial")   validadeExtraida = new Date(em.setMonth(em.getMonth() + 12)).toISOString().slice(0,10);
+      }
+      if (validadeExtraida) setDocForm(p => ({ ...p, validade: validadeExtraida }));
+      // Verificação cruzada de NIF
+      const nifsDoc = [];
+      if (dados.nif) nifsDoc.push(dados.nif);
+      if (dados.nif_proprietario) nifsDoc.push(dados.nif_proprietario);
+      if (dados.nif_outorgante) nifsDoc.push(dados.nif_outorgante);
+      if (Array.isArray(dados.titulares)) dados.titulares.forEach(t => t && t.nif && nifsDoc.push(t.nif));
+      const nifsLimpos = nifsDoc.map(n => String(n).replace(/\s/g, "")).filter(Boolean);
+      if (detail.nif && nifsLimpos.length > 0 && !nifsLimpos.includes(String(detail.nif).replace(/\s/g, ""))) {
+        setAvisoNif(`⚠ O NIF no documento (${nifsLimpos.join(", ")}) difere do NIF do proprietário (${detail.nif}). Verifica antes de guardar.`);
+      }
+    } catch (e) {
+      console.error("análise doc:", e);
+      setAvisoNif("Não foi possível analisar automaticamente. Preenche os dados manualmente.");
+    }
+    setAnalisando(false);
+  };
+
   const guardarDoc = async () => {
     if (!docForm.file || !detail) return;
     setUploading(true);
@@ -5455,10 +5545,12 @@ const Proprietarios = ({ mob }) => {
         proprietarioId: detail.id, tipo: docForm.tipo,
         nomeFicheiro: docForm.file.name, url,
         validade: docForm.validade || null, notas: docForm.notas,
+        dadosExtraidos: extraidos || null,
       });
       setDocs(d => [novo, ...d]);
       setDocMod(false);
       setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
+      setExtraidos(null); setAvisoNif(null);
     } catch (e) { alert("Erro no upload: " + e.message); }
     setUploading(false);
   };
@@ -5555,24 +5647,55 @@ const Proprietarios = ({ mob }) => {
         </div>
 
         {docMod && (
-          <Modal title="Novo Documento" onClose={()=>!uploading&&setDocMod(false)}>
+          <Modal title="Novo Documento" onClose={()=>!uploading&&!analisando&&setDocMod(false)}>
             <Field label="Tipo de documento">
-              <select value={docForm.tipo} onChange={e=>setDocForm(p=>({...p,tipo:e.target.value}))}>
+              <select value={docForm.tipo} onChange={e=>{const t=e.target.value;setDocForm(p=>({...p,tipo:t}));setExtraidos(null);setAvisoNif(null);if(docForm.file)analisarDoc(docForm.file,t);}}>
                 {TIPOS_DOC.map(t=><option key={t}>{t}</option>)}
               </select>
             </Field>
             <Field label="Ficheiro (PDF ou imagem)">
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocForm(p=>({...p,file:e.target.files[0]||null}))}/>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>{const f=e.target.files[0]||null;setDocForm(p=>({...p,file:f}));setExtraidos(null);setAvisoNif(null);if(f)analisarDoc(f,docForm.tipo);}}/>
             </Field>
-            <Field label="Validade (opcional)">
+
+            {analisando && (
+              <div style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:13,color:G.gold1}}>✦ A analisar o documento...</span>
+              </div>
+            )}
+
+            {extraidos && !analisando && (
+              <div style={{background:`${G.gold1}0A`,border:`1px solid ${G.gold1}30`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <p style={{fontSize:10,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:8}}>✦ Dados extraídos — confirma antes de guardar</p>
+                {Object.entries(extraidos).filter(([k,v])=>v!==null&&v!==""&&k!=="titulares").map(([k,v])=>(
+                  <div key={k} style={{display:"flex",gap:8,fontSize:12,marginBottom:3}}>
+                    <span style={{color:G.textDim,minWidth:130,textTransform:"capitalize"}}>{k.replace(/_/g," ")}:</span>
+                    <span style={{color:G.text}}>{typeof v==="object"?JSON.stringify(v):String(v)}</span>
+                  </div>
+                ))}
+                {Array.isArray(extraidos.titulares) && extraidos.titulares.length>0 && (
+                  <div style={{display:"flex",gap:8,fontSize:12,marginBottom:3}}>
+                    <span style={{color:G.textDim,minWidth:130}}>Titulares:</span>
+                    <span style={{color:G.text}}>{extraidos.titulares.map(t=>t&&`${t.nome||"?"}${t.nif?` (${t.nif})`:""}`).filter(Boolean).join("; ")}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {avisoNif && (
+              <div style={{background:`${G.red}10`,border:`1px solid ${G.red}40`,borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+                <p style={{fontSize:12,color:G.red}}>{avisoNif}</p>
+              </div>
+            )}
+
+            <Field label="Validade (preenchida automaticamente se detectada)">
               <input type="date" value={docForm.validade} onChange={e=>setDocForm(p=>({...p,validade:e.target.value}))}/>
             </Field>
             <Field label="Notas (opcional)">
               <input value={docForm.notas} onChange={e=>setDocForm(p=>({...p,notas:e.target.value}))} placeholder="Ex: fracção B, 2.º direito"/>
             </Field>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
-              <button className="btn-ghost" disabled={uploading} onClick={()=>setDocMod(false)}>Cancelar</button>
-              <button className="btn-gold" disabled={uploading||!docForm.file} onClick={guardarDoc}>{uploading?"A carregar...":"Guardar documento"}</button>
+              <button className="btn-ghost" disabled={uploading||analisando} onClick={()=>setDocMod(false)}>Cancelar</button>
+              <button className="btn-gold" disabled={uploading||analisando||!docForm.file} onClick={guardarDoc}>{uploading?"A carregar...":"Guardar documento"}</button>
             </div>
           </Modal>
         )}
