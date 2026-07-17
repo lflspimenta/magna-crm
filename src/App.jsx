@@ -5727,6 +5727,21 @@ const Proprietarios = ({ mob }) => {
     setUploading(false);
   };
 
+  // Abrir documento — fichas HTML são renderizadas numa janela nova
+  const abrirDoc = async (d) => {
+    if (d.nomeFicheiro && d.nomeFicheiro.toLowerCase().endsWith(".html")) {
+      try {
+        const res = await fetch(d.url);
+        const html = await res.text();
+        const win = window.open("", "_blank");
+        win.document.write(html);
+        win.document.close();
+      } catch (e) { window.open(d.url, "_blank"); }
+    } else {
+      window.open(d.url, "_blank");
+    }
+  };
+
   const eliminarDoc = async (d) => {
     if (!confirm(`Eliminar o documento "${d.nomeFicheiro}"?`)) return;
     try {
@@ -5810,7 +5825,7 @@ const Proprietarios = ({ mob }) => {
                   </div>
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <a href={d.url} target="_blank" rel="noreferrer" style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",display:"flex",textDecoration:"none"}}><Ic n="eye" s={14} c={G.textMuted}/></a>
+                  <button onClick={()=>abrirDoc(d)} style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",cursor:"pointer",display:"flex"}}><Ic n="eye" s={14} c={G.textMuted}/></button>
                   <button onClick={()=>eliminarDoc(d)} style={{background:"none",border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",cursor:"pointer",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
                 </div>
               </div>
