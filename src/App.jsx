@@ -192,7 +192,6 @@ function Funil({ mob }) {
     maxWidth: 100
   }}
 >
-                >
                   {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
                 </select>}
               </div>
@@ -5366,7 +5365,7 @@ const Clientes=({clientes,setClientes,mob})=>{
                 <div><p style={{fontWeight:500,fontSize:15}}>{c.nome}</p><span className={`tag badge-${c.temperatura.toLowerCase()}`}>{c.temperatura}</span></div>
               </div>
               <div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
-              onClick={()=>{setForm({...c,tipologia:c.tipologia||[]});setEditId(c.id);setMod(true);}}
+                <button onClick={()=>{setForm({...c,tipologia:c.tipologia||[]});setEditId(c.id);setMod(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="edit" s={14} c={G.textDim}/></button>
                 <button onClick={()=>eliminar(c)} style={{background:"none",border:"none",cursor:"pointer",padding:"5px"}}><Ic n="trash" s={14} c={G.red}/></button>
               </div>
             </div>
