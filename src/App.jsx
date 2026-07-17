@@ -3705,6 +3705,104 @@ ${v.notas?`<div class="field" style="margin-top:10px"><div class="field-label">O
 </div>${incluirPrint?`<script>window.print();window.onafterprint=()=>window.close();</scr`+`ipt>`:""}</body></html>`;
 };
 
+// ── Ficha BC/FT + Consentimento RGPD (Lei 83/2017) ──────
+const htmlBCFT = (d, sig, agente, incluirPrint = true) => {
+  const hoje = new Date().toLocaleDateString("pt-PT");
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Ficha BC/FT e RGPD — ${d.nome}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#1a1a1a;background:#fff;font-size:14px;line-height:1.6}
+.page{max-width:780px;margin:0 auto;padding:50px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#8B6914;letter-spacing:2px}
+.logo-sub{font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+.title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;text-align:right;color:#1a1a1a;max-width:320px}
+h2{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:6px;margin:24px 0 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+.field{padding:10px 14px;background:#f9f7f1;border-radius:6px;border-left:3px solid #C9A84C}
+.field-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.field-value{font-size:14px;font-weight:500;color:#1a1a1a}
+.clausula{margin-bottom:14px;padding:14px 16px;background:#fafafa;border-radius:6px;border:1px solid #eee}
+.clausula p{font-size:12.5px;color:#444;line-height:1.7}
+.sig-area{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px}
+.sig-box{text-align:center}
+.sig-img{height:70px;display:block;margin:0 auto 8px;max-width:220px}
+.sig-line{border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555}
+.footer{margin-top:36px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#999;text-align:center}
+.quebra{page-break-before:always;margin-top:40px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body><div class="page">
+
+<div class="header">
+  <div>
+    <svg width="44" height="38" viewBox="0 0 80 70"><defs><linearGradient id="g"><stop offset="0%" stop-color="#8B6914"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs><path d="M5 65 L5 30 L25 10 L40 25 L55 10 L75 30 L75 65" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 65 L20 45 L40 25 L60 45 L60 65" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="logo-name">MAGNA</div>
+    <div class="logo-sub">Group Real Estate · Portugal</div>
+  </div>
+  <div style="text-align:right">
+    <div class="title">Ficha de Identificação BC/FT<br/><span style="font-size:13px;color:#888">Lei n.º 83/2017, de 18 de agosto</span></div>
+    <div style="font-size:12px;color:#888;margin-top:6px">Data: ${hoje} · Ref: BCFT-${Date.now().toString().slice(-6)}</div>
+  </div>
+</div>
+
+<h2>1. Identificação do Cliente</h2>
+<div class="grid2">
+  ${[["Nome completo",d.nome],["NIF",d.nif||"—"],["Documento de identificação",d.docIdentificacao||"—"],["Validade do documento",d.docValidade?new Date(d.docValidade).toLocaleDateString("pt-PT"):"—"],["Data de nascimento",d.dataNascimento?new Date(d.dataNascimento).toLocaleDateString("pt-PT"):"—"],["Nacionalidade",d.nacionalidade||"—"],["Profissão",d.profissao||"—"],["Contacto",d.contacto||"—"]].map(([l,v])=>`<div class="field"><div class="field-label">${l}</div><div class="field-value">${v}</div></div>`).join("")}
+  <div class="field" style="grid-column:1/-1"><div class="field-label">Morada</div><div class="field-value">${d.morada||"—"}</div></div>
+</div>
+
+<h2>2. Natureza da Relação de Negócio</h2>
+<div class="grid2">
+  ${[["Qualidade",d.qualidade||"—"],["Origem dos fundos",d.origemFundos||"N/A"]].map(([l,v])=>`<div class="field"><div class="field-label">${l}</div><div class="field-value">${v}</div></div>`).join("")}
+</div>
+
+<h2>3. Declarações</h2>
+<div class="clausula"><p>O CLIENTE declara que os dados acima prestados são verdadeiros e completos, e que actua em nome próprio${d.beneficiario?"":" e é o beneficiário efectivo da operação"}. Declara ainda ter conhecimento de que a Magna Group Real Estate, enquanto entidade obrigada nos termos da Lei n.º 83/2017, de 18 de agosto, está sujeita a deveres de identificação, diligência, comunicação e conservação de documentos no âmbito da prevenção do branqueamento de capitais e do financiamento do terrorismo.</p></div>
+<div class="clausula"><p>O CLIENTE compromete-se a comunicar qualquer alteração aos dados constantes desta ficha e a fornecer os documentos comprovativos que venham a ser solicitados no âmbito dos deveres legais da mediadora.</p></div>
+
+<div class="quebra"></div>
+<div class="header">
+  <div>
+    <div class="logo-name">MAGNA</div>
+    <div class="logo-sub">Group Real Estate · Portugal</div>
+  </div>
+  <div style="text-align:right">
+    <div class="title">Consentimento de Tratamento de Dados<br/><span style="font-size:13px;color:#888">RGPD — Regulamento (UE) 2016/679</span></div>
+  </div>
+</div>
+
+<h2>Consentimento RGPD</h2>
+<div class="clausula"><p>O titular dos dados, acima identificado, autoriza a <strong>Magna Group Real Estate</strong> a recolher e tratar os seus dados pessoais para as seguintes finalidades: (i) prestação de serviços de mediação imobiliária; (ii) cumprimento de obrigações legais, incluindo as decorrentes da Lei n.º 83/2017; (iii) comunicações relacionadas com os serviços contratados.</p></div>
+<div class="clausula"><p>Os dados serão conservados pelo período necessário às finalidades indicadas ou pelo prazo legal aplicável. O titular pode exercer, a qualquer momento, os direitos de acesso, rectificação, apagamento, limitação, portabilidade e oposição, mediante contacto com a Magna Group Real Estate. Tem ainda o direito de apresentar reclamação à CNPD.</p></div>
+<div class="clausula"><p>Os dados não serão transmitidos a terceiros, salvo obrigação legal ou necessidade estrita da execução do serviço (ex.: entidades bancárias, notários, conservatórias), nem serão utilizados para outras finalidades sem novo consentimento.</p></div>
+
+<div class="sig-area">
+  <div class="sig-box">
+    <p style="font-size:12px;color:#888;margin-bottom:8px">O Cliente / Titular dos Dados</p>
+    ${sig?`<img src="${sig}" class="sig-img" alt="Assinatura"/>`:`<div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>`}
+    <div class="sig-line">${d.nome}${d.nif?`<br/><span style="color:#888">NIF: ${d.nif}</span>`:""}</div>
+  </div>
+  <div class="sig-box">
+    <p style="font-size:12px;color:#888;margin-bottom:8px">Pela Mediadora</p>
+    <div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>
+    <div class="sig-line">${agente?agente.nome:"—"}<br/><span style="color:#888">Magna Group Real Estate</span></div>
+  </div>
+</div>
+
+<div class="footer">
+  Magna Group Real Estate · Documento gerado em ${hoje} · Ficha BC/FT (Lei 83/2017) e Consentimento RGPD · Conservar por 7 anos.
+</div>
+</div>${incluirPrint?`<script>window.print();window.onafterprint=()=>window.close();</scr`+`ipt>`:""}</body></html>`;
+};
+
+const gerarPDFBCFT = (d, sig, agente) => {
+  const win = window.open("","_blank");
+  win.document.write(htmlBCFT(d, sig, agente, true));
+  win.document.close();
+};
+
 const gerarPDFVisita = (v, imovel, agente) => {
   const win = window.open("","_blank");
   win.document.write(htmlFichaVisita(v, imovel, true));
@@ -5516,8 +5614,9 @@ const partilharCliente = async (c) => {
   else { try { await navigator.clipboard.writeText(texto); alert("✓ Contacto copiado!"); } catch { alert("Não foi possível partilhar."); } }
 };
 
-const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
+const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
   const c = cliente;
+  const [bcftCli, setBcftCli] = useState(false);
   return (
     <Modal title="" onClose={onClose}>
       {/* Cabeçalho com avatar */}
@@ -5576,9 +5675,11 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
         {c.telefone && <a href={`tel:${c.telefone.replace(/\s/g,"")}`} className="btn-gold" style={{textDecoration:"none",flex:mob?1:"none",justifyContent:"center"}}><Ic n="phone" s={14} c="#0E0E0F"/>Ligar</a>}
         {c.email && <a href={`mailto:${c.email}`} className="btn-ghost" style={{textDecoration:"none",flex:mob?1:"none",justifyContent:"center"}}><Ic n="mail" s={14} c={G.blue}/>Email</a>}
         <button className="btn-ghost" onClick={()=>partilharCliente(c)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
+        <button className="btn-ghost" onClick={()=>setBcftCli(true)} style={{flex:mob?1:"none",borderColor:`${G.gold1}40`,color:G.gold1}}>BC/FT</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
+          {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
     </Modal>
   );
 };
@@ -5609,7 +5710,79 @@ const PropForm = ({ form, setForm, onSave, onClose, editId }) => (
   </Modal>
 );
 
-const Proprietarios = ({ mob }) => {
+// ── Modal de geração BC/FT + RGPD ──
+const GerarBCFT = ({ pessoa, qualidade, user, onClose, onArquivar, docsDossier = [] }) => {
+  // Pré-preencher a partir dos dados extraídos dos documentos já no dossier (Fase 2)
+  const dadosDe = (tipo) => {
+    const doc = docsDossier.find(x => x.tipo === tipo && x.dadosExtraidos);
+    return doc ? doc.dadosExtraidos : null;
+  };
+  const cc = dadosDe("Documento de Identificação");
+  const cmi = dadosDe("CMI");
+  const [preenchidoAuto] = useState(!!(cc || cmi));
+
+  const [d, setD] = useState({
+    nome: pessoa.nome || (cc && cc.nome_completo) || "",
+    nif: pessoa.nif || (cc && cc.nif) || (cmi && cmi.nif_proprietario) || "",
+    morada: pessoa.morada || "", contacto: pessoa.telefone || pessoa.email || "",
+    docIdentificacao: (cc && cc.numero_documento) || "",
+    docValidade: (cc && cc.validade) || "",
+    dataNascimento: (cc && cc.data_nascimento) || "",
+    nacionalidade: "Portuguesa", profissao: "",
+    qualidade: qualidade, origemFundos: "",
+  });
+  const [sig, setSig] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const gerar = async (arquivar) => {
+    if (!d.nome) { alert("O nome é obrigatório."); return; }
+    setSaving(true);
+    try {
+      if (arquivar && onArquivar) await onArquivar(d, sig);
+      gerarPDFBCFT(d, sig, user);
+      onClose();
+    } catch (e) { alert("Erro: " + e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <Modal title="Ficha BC/FT + Consentimento RGPD" onClose={()=>!saving&&onClose()}>
+      <p style={{fontSize:12,color:G.textDim,marginBottom:preenchidoAuto?8:16}}>Lei n.º 83/2017 · Obrigatória para fiscalização IMPIC · O documento inclui o consentimento RGPD</p>
+      {preenchidoAuto && <p style={{fontSize:12,color:G.gold1,marginBottom:16}}>✦ Campos pré-preenchidos a partir dos documentos do dossier — confirma antes de gerar</p>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div style={{gridColumn:"1/-1"}}><Field label="Nome completo *"><input value={d.nome} onChange={e=>setD(p=>({...p,nome:e.target.value}))}/></Field></div>
+        <Field label="NIF"><input value={d.nif} onChange={e=>setD(p=>({...p,nif:e.target.value}))}/></Field>
+        <Field label="Contacto"><input value={d.contacto} onChange={e=>setD(p=>({...p,contacto:e.target.value}))}/></Field>
+        <div style={{gridColumn:"1/-1"}}><Field label="Morada"><input value={d.morada} onChange={e=>setD(p=>({...p,morada:e.target.value}))}/></Field></div>
+        <Field label="Documento de identificação (n.º CC)"><input value={d.docIdentificacao} onChange={e=>setD(p=>({...p,docIdentificacao:e.target.value}))} placeholder="12345678 9 ZZ0"/></Field>
+        <Field label="Validade do documento"><input type="date" value={d.docValidade} onChange={e=>setD(p=>({...p,docValidade:e.target.value}))}/></Field>
+        <Field label="Data de nascimento"><input type="date" value={d.dataNascimento} onChange={e=>setD(p=>({...p,dataNascimento:e.target.value}))}/></Field>
+        <Field label="Nacionalidade"><input value={d.nacionalidade} onChange={e=>setD(p=>({...p,nacionalidade:e.target.value}))}/></Field>
+        <Field label="Profissão"><input value={d.profissao} onChange={e=>setD(p=>({...p,profissao:e.target.value}))}/></Field>
+        <Field label="Qualidade">
+          <select value={d.qualidade} onChange={e=>setD(p=>({...p,qualidade:e.target.value}))}>
+            <option>Proprietário / Vendedor</option><option>Comprador</option><option>Arrendatário</option><option>Senhorio</option><option>Investidor</option>
+          </select>
+        </Field>
+        {(d.qualidade==="Comprador"||d.qualidade==="Investidor") && (
+          <div style={{gridColumn:"1/-1"}}><Field label="Origem dos fundos">
+            <select value={d.origemFundos} onChange={e=>setD(p=>({...p,origemFundos:e.target.value}))}>
+              <option value="">Seleccionar</option><option>Poupanças / Rendimentos do trabalho</option><option>Crédito bancário</option><option>Venda de outro imóvel</option><option>Herança / Doação</option><option>Rendimentos empresariais</option><option>Outra</option>
+            </select>
+          </Field></div>
+        )}
+      </div>
+      <SignaturePad label="Assinatura do cliente" onSave={setSig} saved={sig}/>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16,flexWrap:"wrap"}}>
+        <button className="btn-ghost" disabled={saving} onClick={onClose}>Cancelar</button>
+        {onArquivar && <button className="btn-gold" disabled={saving} onClick={()=>gerar(true)}>{saving?"A guardar...":"Arquivar no dossier + PDF"}</button>}
+        {!onArquivar && <button className="btn-gold" disabled={saving} onClick={()=>gerar(false)}>Gerar PDF</button>}
+      </div>
+    </Modal>
+  );
+};
+
+const Proprietarios = ({ mob, userAtual }) => {
   const [lista, setLista] = useState([]);
   const [docs, setDocs] = useState([]);
   const [imoveisProp, setImoveisProp] = useState([]);
@@ -5619,6 +5792,7 @@ const Proprietarios = ({ mob }) => {
   const [editId, setEditId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [docMod, setDocMod] = useState(false);
+  const [bcftMod, setBcftMod] = useState(false);
   const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
   const [uploading, setUploading] = useState(false);
   const [analisando, setAnalisando] = useState(false);
@@ -5776,6 +5950,7 @@ const Proprietarios = ({ mob }) => {
               </div>
             </div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button className="btn-gold" onClick={()=>setBcftMod(true)} style={{padding:"9px 14px",fontSize:12}}>BC/FT + RGPD</button>
               <button className="btn-ghost" onClick={()=>{setForm({...detail});setEditId(detail.id);setMod(true);}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
               <button className="btn-ghost" onClick={()=>eliminar(detail)} style={{borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
             </div>
@@ -5888,6 +6063,19 @@ const Proprietarios = ({ mob }) => {
         )}
 
         {mod && <PropForm form={form} setForm={setForm} onSave={guardar} onClose={()=>{setMod(false);setForm(emptyProp);setEditId(null);}} editId={editId}/>}
+        {bcftMod && <GerarBCFT pessoa={detail} qualidade="Proprietário / Vendedor" user={userAtual} docsDossier={docsDe(detail.id)} onClose={()=>setBcftMod(false)} onArquivar={async (d, sig) => {
+          const html = htmlBCFT(d, sig, userAtual, false);
+          const blob = new Blob([html], { type: "text/html" });
+          const nomeFich = `BCFT-RGPD — ${d.nome} — ${new Date().toLocaleDateString("pt-PT")}.html`;
+          const file = new File([blob], nomeFich, { type: "text/html" });
+          const url = await uploadDocumento(file, detail.id);
+          const novo = await dbDocsProprietario.insert({
+            proprietarioId: detail.id, tipo: "Outro",
+            nomeFicheiro: nomeFich, url, validade: null,
+            notas: "Ficha BC/FT + Consentimento RGPD assinados",
+          });
+          setDocs(ds => [novo, ...ds]);
+        }}/>}
       </div>
     );
   }
@@ -5979,7 +6167,7 @@ const Clientes=({clientes,setClientes,mob})=>{
           </div>
         ))}
       </div>
-      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob}/>}
+      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={window.__magnaUser}/>}
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div style={{gridColumn:"1/-1"}}><Field label="Nome completo"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do cliente"/></Field></div>
@@ -6506,6 +6694,7 @@ export default function App() {
     </div>
   );
 
+  if (user) window.__magnaUser = user;
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
@@ -6558,7 +6747,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
-            {page==="proprietarios"&&<Proprietarios mob={false}/>}
+            {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
@@ -6591,7 +6780,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
-            {page==="proprietarios"&&<Proprietarios mob={true}/>}
+            {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}
