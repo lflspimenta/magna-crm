@@ -48,9 +48,15 @@ const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
+const F_VISITAS = ['imovel_id','imovel_titulo','cliente_nome','cliente_nif','cliente_contacto','data','hora','agente_nome','notas','sig_cliente'];
 
 // ── Mappings appKey -> dbKey ─────────────────────────────
 const M_IMOVEIS = { casasBanho: 'casas_banho' };
+const M_VISITAS = {
+  imovelId: 'imovel_id', imovelTitulo: 'imovel_titulo',
+  clienteNome: 'cliente_nome', clienteNif: 'cliente_nif', clienteContacto: 'cliente_contacto',
+  agenteNome: 'agente_nome', sigCliente: 'sig_cliente',
+};
 const M_DOCS = {
   proprietarioId: 'proprietario_id', imovelId: 'imovel_id',
   nomeFicheiro: 'nome_ficheiro', dadosExtraidos: 'dados_extraidos',
@@ -102,6 +108,7 @@ export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', a
 export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
 export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);
 export const dbDocsProprietario = makeCRUD('documentos_proprietario', M_DOCS, F_DOCS_PROP);
+export const dbVisitas = makeCRUD('visitas', M_VISITAS, F_VISITAS);
 
 // ── UTILIZADORES via Supabase Auth ────────────────────────
 // Dados do perfil (nome, cargo, avatar, role) vivem na tabela 'utilizadores'

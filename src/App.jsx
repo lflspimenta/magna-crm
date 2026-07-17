@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento } from "./db.js";
+import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento, dbVisitas } from "./db.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -3629,6 +3629,84 @@ const SignaturePad = ({ label, onSave, saved }) => {
 };
 
 // Generate Angariação PDF
+// ── Ficha de Visita (Fase 3) ─────────────────────────────
+const gerarPDFVisita = (v, imovel, agente) => {
+  const win = window.open("","_blank");
+  const dataFmt = new Date(v.data).toLocaleDateString("pt-PT");
+  const loc = imovel ? [imovel.morada, imovel.freguesia, imovel.concelho, imovel.distrito].filter(Boolean).join(", ") : "";
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Ficha de Visita — ${v.clienteNome}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#1a1a1a;background:#fff;font-size:14px;line-height:1.6}
+.page{max-width:780px;margin:0 auto;padding:50px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#8B6914;letter-spacing:2px}
+.logo-sub{font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+.title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;text-align:right;color:#1a1a1a}
+h2{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:6px;margin:24px 0 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+.field{padding:10px 14px;background:#f9f7f1;border-radius:6px;border-left:3px solid #C9A84C}
+.field-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.field-value{font-size:14px;font-weight:500;color:#1a1a1a}
+.clausula{margin-bottom:14px;padding:14px 16px;background:#fafafa;border-radius:6px;border:1px solid #eee}
+.clausula p{font-size:13px;color:#444;line-height:1.7}
+.sig-area{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px}
+.sig-box{text-align:center}
+.sig-img{height:70px;display:block;margin:0 auto 8px;max-width:220px}
+.sig-line{border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555}
+.footer{margin-top:36px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#999;text-align:center}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body><div class="page">
+
+<div class="header">
+  <div>
+    <svg width="44" height="38" viewBox="0 0 80 70"><defs><linearGradient id="g"><stop offset="0%" stop-color="#8B6914"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs><path d="M5 65 L5 30 L25 10 L40 25 L55 10 L75 30 L75 65" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 65 L20 45 L40 25 L60 45 L60 65" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="logo-name">MAGNA</div>
+    <div class="logo-sub">Group Real Estate · Portugal</div>
+  </div>
+  <div style="text-align:right">
+    <div class="title">Ficha de Visita</div>
+    <div style="font-size:12px;color:#888;margin-top:6px">Data: ${dataFmt}${v.hora?` · ${v.hora}`:""} · Ref: FV-${Date.now().toString().slice(-6)}</div>
+  </div>
+</div>
+
+<h2>1. Identificação do Visitante</h2>
+<div class="grid2">
+  ${[["Nome",v.clienteNome],["NIF",v.clienteNif||"—"],["Contacto",v.clienteContacto||"—"],["Data da Visita",`${dataFmt}${v.hora?` às ${v.hora}`:""}`]].map(([l,val])=>`<div class="field"><div class="field-label">${l}</div><div class="field-value">${val}</div></div>`).join("")}
+</div>
+
+<h2>2. Imóvel Visitado</h2>
+<div class="grid2">
+  ${[["Imóvel",v.imovelTitulo||(imovel?imovel.titulo:"—")],["Localização",loc||"—"],["Tipo",imovel?imovel.tipo:"—"],["Valor",imovel?`${Number(imovel.valor).toLocaleString("pt-PT")} €`:"—"]].map(([l,val])=>`<div class="field"><div class="field-label">${l}</div><div class="field-value">${val}</div></div>`).join("")}
+</div>
+${v.notas?`<div class="field" style="margin-top:10px"><div class="field-label">Observações</div><div class="field-value" style="font-size:13px;color:#555">${v.notas}</div></div>`:""}
+
+<h2>3. Declaração</h2>
+<div class="clausula"><p>O VISITANTE declara que tomou conhecimento do imóvel acima identificado por intermédio da <strong>Magna Group Real Estate</strong>, na pessoa do agente <strong>${v.agenteNome}</strong>, na data indicada. Mais declara que não conhecia o imóvel nem tinha sido informado da sua disponibilidade por qualquer outro meio, reconhecendo a intervenção da mediadora na apresentação do mesmo.</p></div>
+<div class="clausula"><p>Qualquer negócio celebrado sobre o imóvel apresentado, directamente ou por interposta pessoa, no prazo de 12 meses após esta visita, reconhece a intermediação da Magna Group Real Estate para todos os efeitos, incluindo o direito à respectiva remuneração.</p></div>
+
+<div class="sig-area">
+  <div class="sig-box">
+    <p style="font-size:12px;color:#888;margin-bottom:8px">O Visitante</p>
+    ${v.sigCliente?`<img src="${v.sigCliente}" class="sig-img" alt="Assinatura"/>`:`<div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>`}
+    <div class="sig-line">${v.clienteNome}${v.clienteNif?`<br/><span style="color:#888">NIF: ${v.clienteNif}</span>`:""}</div>
+  </div>
+  <div class="sig-box">
+    <p style="font-size:12px;color:#888;margin-bottom:8px">Pela Mediadora</p>
+    <div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>
+    <div class="sig-line">${v.agenteNome}<br/><span style="color:#888">Magna Group Real Estate</span></div>
+  </div>
+</div>
+
+<div class="footer">
+  Magna Group Real Estate · Ficha de visita gerada em ${new Date().toLocaleDateString("pt-PT")} · Documento com valor probatório da apresentação do imóvel.
+</div>
+</div><script>window.print();window.onafterprint=()=>window.close();</script></body></html>`);
+  win.document.close();
+};
+
 const gerarPDFAngariacao = (ang, sigProp, sigAgente, agente) => {
   const win = window.open("","_blank");
   const hoje = new Date().toLocaleDateString("pt-PT");
@@ -4970,7 +5048,73 @@ const partilharImovel=async(imovel)=>{
   }
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
+// ── Registo de visita com assinatura (Fase 3) ──
+const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
+  const agora = new Date();
+  const [v, setV] = useState({
+    clienteNome:"", clienteNif:"", clienteContacto:"",
+    data: agora.toISOString().slice(0,10),
+    hora: agora.toTimeString().slice(0,5),
+    notas:"",
+  });
+  const [sigCliente, setSigCliente] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [clienteSel, setClienteSel] = useState("");
+
+  const escolherCliente = (id) => {
+    setClienteSel(id);
+    const c = clientes.find(x => String(x.id) === String(id));
+    if (c) setV(p => ({ ...p, clienteNome:c.nome, clienteContacto:c.telefone||c.email||"" }));
+  };
+
+  const guardar = async (gerarPdf) => {
+    if (!v.clienteNome || !v.data) { alert("Nome do visitante e data são obrigatórios."); return; }
+    setSaving(true);
+    try {
+      const registo = {
+        imovelId: imovel.id, imovelTitulo: imovel.titulo,
+        clienteNome: v.clienteNome, clienteNif: v.clienteNif, clienteContacto: v.clienteContacto,
+        data: v.data, hora: v.hora, agenteNome: user.nome,
+        notas: v.notas, sigCliente,
+      };
+      if (dbReady) await dbVisitas.insert(registo);
+      if (gerarPdf) gerarPDFVisita(registo, imovel, user);
+      onClose();
+    } catch (e) { alert("Erro ao guardar a visita: " + e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <Modal title="Registar Visita" onClose={()=>!saving&&onClose()}>
+      <p style={{fontSize:13,color:G.textMuted,marginBottom:16}}>{imovel.titulo} · {[imovel.freguesia,imovel.concelho].filter(Boolean).join(", ")}</p>
+
+      <Field label="Cliente existente (opcional)">
+        <select value={clienteSel} onChange={e=>escolherCliente(e.target.value)}>
+          <option value="">— Preencher manualmente —</option>
+          {clientes.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+        </select>
+      </Field>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div style={{gridColumn:"1/-1"}}><Field label="Nome do visitante *"><input value={v.clienteNome} onChange={e=>setV(p=>({...p,clienteNome:e.target.value}))} placeholder="Nome completo"/></Field></div>
+        <Field label="NIF (opcional)"><input value={v.clienteNif} onChange={e=>setV(p=>({...p,clienteNif:e.target.value}))} placeholder="123456789"/></Field>
+        <Field label="Contacto"><input value={v.clienteContacto} onChange={e=>setV(p=>({...p,clienteContacto:e.target.value}))} placeholder="Telefone ou email"/></Field>
+        <Field label="Data *"><input type="date" value={v.data} onChange={e=>setV(p=>({...p,data:e.target.value}))}/></Field>
+        <Field label="Hora"><input type="time" value={v.hora} onChange={e=>setV(p=>({...p,hora:e.target.value}))}/></Field>
+        <div style={{gridColumn:"1/-1"}}><Field label="Observações"><input value={v.notas} onChange={e=>setV(p=>({...p,notas:e.target.value}))} placeholder="Notas sobre a visita..."/></Field></div>
+      </div>
+
+      <SignaturePad label="Assinatura do visitante" onSave={setSigCliente} saved={sigCliente}/>
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16,flexWrap:"wrap"}}>
+        <button className="btn-ghost" disabled={saving} onClick={onClose}>Cancelar</button>
+        <button className="btn-ghost" disabled={saving} onClick={()=>guardar(false)}>Guardar sem PDF</button>
+        <button className="btn-gold" disabled={saving} onClick={()=>guardar(true)}>{saving?"A guardar...":"Guardar e gerar PDF"}</button>
+      </div>
+    </Modal>
+  );
+};
+
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5051,6 +5195,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
       {/* Ações */}
       <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
         <button className="btn-gold" onClick={onMkt} style={{flex:mob?"1 1 100%":1}}><Ic n="spark" s={14} c="#0E0E0F"/>Avaliar com IA</button>
+        <button className="btn-ghost" onClick={onVisita} style={{flex:mob?1:"none"}}><Ic n="calendar" s={14} c={G.green}/>Registar visita</button>
         <button className="btn-ghost" onClick={()=>gerarFichaPDF(imovel)} style={{flex:mob?1:"none"}}><Ic n="pdf" s={14} c={G.gold1}/>Gerar PDF</button>
         <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
@@ -5060,7 +5205,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,mob})=>{
   );
 };
 
-const Imoveis=({imoveis,setImoveis,mob})=>{
+const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [importMod,setImportMod]=useState(false);
@@ -5068,6 +5213,7 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
   const [editId,setEditId]=useState(null);
   const [mktIm,setMktIm]=useState(null);
   const [detailIm,setDetailIm]=useState(null);
+  const [visitaIm,setVisitaIm]=useState(null);
   const [uploading,setUploading]=useState(false);
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.titulo)return;const d={...form,status:(form.status||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""),valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
@@ -5226,7 +5372,8 @@ const Imoveis=({imoveis,setImoveis,mob})=>{
       </Modal>}
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
+      {visitaIm&&<RegistarVisita imovel={visitaIm} clientes={clientes} user={user} onClose={()=>setVisitaIm(null)} mob={mob}/>}
     </div>
   );
 };
@@ -6369,7 +6516,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={false}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
@@ -6402,7 +6549,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={true}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
