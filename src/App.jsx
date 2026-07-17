@@ -5420,79 +5420,85 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
           </div>
         ))}
       </div>}
+{modal && (
+  <Modal title={editId ? "Editar Imóvel" : "Novo Imóvel"} onClose={() => setMod(false)}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ gridColumn: "1/-1" }}><Field label="Título"><input value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Apartamento T3 Chiado" /></Field></div>
+      <Field label="Ícone"><select value={form.foto} onChange={e => setForm(p => ({ ...p, foto: e.target.value }))}>{fotos.map(f => <option key={f} value={f}>{f}</option>)}</select></Field>
+      <Field label="Tipo"><select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>{["Apartamento", "Moradia", "Terreno", "Comercial", "Escritório"].map(t => <option key={t}>{t}</option>)}</select></Field>
+      <Field label="Finalidade"><select value={form.finalidade} onChange={e => setForm(p => ({ ...p, finalidade: e.target.value }))}><option>Venda</option><option>Arrendamento</option></select></Field>
+      <Field label="Estado"><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option>Disponível</option><option>Reservado</option><option>Vendido</option><option>Arrendado</option></select></Field>
+      <Field label="Valor (€)"><input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" /></Field>
+      <Field label="Área (m²)"><input type="number" value={form.area} onChange={e => setForm(p => ({ ...p, area: e.target.value }))} placeholder="0" /></Field>
+      <Field label="Quartos"><input type="number" value={form.quartos} onChange={e => setForm(p => ({ ...p, quartos: e.target.value }))} placeholder="0" /></Field>
+      
+      {/* SEÇÃO DOS INTERRUPTORES: DESTAQUE + PUBLICADO */}
+      <div style={{ gridColumn: "1/-1", display: "flex", gap: "10px", marginTop: "10px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.destaque ? `${G.gold1}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.destaque ? G.gold1 : G.border}`, transition: "all .2s", flex: 1 }}>
+          <div onClick={() => setForm(p => ({ ...p, destaque: !p.destaque }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.destaque ? G.gold1 : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
+            <div style={{ position: "absolute", top: 2, left: form.destaque ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
+          </div>
+          <div><p style={{ fontSize: 13, fontWeight: 500, color: form.destaque ? G.gold1 : G.text }}>Destaque</p></div>
+        </label>
 
-      {modal&&<Modal title={editId?"Editar Imóvel":"Novo Imóvel"} onClose={()=>setMod(false)}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div style={{gridColumn:"1/-1"}}><Field label="Título"><input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ex: Apartamento T3 Chiado"/></Field></div>
-          <Field label="Ícone"><select value={form.foto} onChange={e=>setForm(p=>({...p,foto:e.target.value}))}>{fotos.map(f=><option key={f} value={f}>{f}</option>)}</select></Field>
-          <Field label="Tipo"><select value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))}>{["Apartamento","Moradia","Terreno","Comercial","Escritório"].map(t=><option key={t}>{t}</option>)}</select></Field>
-          <Field label="Finalidade"><select value={form.finalidade} onChange={e=>setForm(p=>({...p,finalidade:e.target.value}))}><option>Venda</option><option>Arrendamento</option></select></Field>
-          <Field label="Estado"><select value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value}))}><option>Disponível</option><option>Reservado</option><option>Vendido</option><option>Arrendado</option></select></Field>
-          <Field label="Valor (€)"><input type="number" value={form.valor} onChange={e=>setForm(p=>({...p,valor:e.target.value}))} placeholder="0"/></Field>
-          <Field label="Área (m²)"><input type="number" value={form.area} onChange={e=>setForm(p=>({...p,area:e.target.value}))} placeholder="0"/></Field>
-          <Field label="Quartos"><input type="number" value={form.quartos} onChange={e=>setForm(p=>({...p,quartos:e.target.value}))} placeholder="0"/></Field>
-          <div style={{gridColumn:"1/-1"}}>
-            <p style={{fontSize:12,color:G.textMuted,marginBottom:10,textTransform:"uppercase",letterSpacing:".3px"}}>Fotografias</p>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
-              {(form.fotos||[]).map((src,idx)=>(
-                <div key={idx} style={{position:"relative",width:80,height:80}}>
-                  <img src={src} alt="" style={{width:80,height:80,borderRadius:8,objectFit:"cover"}}/>
-                  <button onClick={async()=>{
-                    // Apagar do Storage também se for URL Supabase
-                    if(dbReady&&typeof src==="string"&&src.startsWith("http")){
-                      try{await deleteFoto(src);}catch(e){console.warn("delete foto:",e);}
-                    }
-                    setForm(p=>({...p,fotos:p.fotos.filter((_,i)=>i!==idx)}));
-                  }} style={{position:"absolute",top:-6,right:-6,width:22,height:22,borderRadius:"50%",background:G.red,border:"2px solid "+G.surface1,color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-                </div>
-              ))}
-              <label style={{width:80,height:80,borderRadius:8,border:`2px dashed ${G.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",color:G.textMuted,gap:4,opacity:uploading?.5:1}}>
-                {uploading?<div className="spinner" style={{width:18,height:18,border:`2px solid ${G.textDim}`,borderTopColor:G.gold1,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>:<><Ic n="plus" s={18} c={G.textMuted}/><span style={{fontSize:10}}>Adicionar</span></>}
-                <input type="file" accept="image/*" multiple disabled={uploading} style={{display:"none"}} onChange={async e=>{
-                  const files=Array.from(e.target.files||[]);
-                  if(files.length===0)return;
-                  e.target.value="";
-                  if(!dbReady){
-                    // Fallback: base64 em memória (sessão apenas)
-                    files.forEach(file=>{
-                      if(file.size>3*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`);return;}
-                      const reader=new FileReader();
-                      reader.onload=ev=>setForm(p=>({...p,fotos:[...(p.fotos||[]),ev.target.result]}));
-                      reader.readAsDataURL(file);
-                    });
-                    return;
-                  }
-                  // Upload para Supabase Storage
-                  setUploading(true);
-                  for(const file of files){
-                    if(file.size>5*1024*1024){alert(`A foto "${file.name}" é demasiado grande (máx 5MB).`);continue;}
-                    try{
-                      const url=await uploadFoto(file);
-                      setForm(p=>({...p,fotos:[...(p.fotos||[]),url]}));
-                    }catch(err){
-                      console.error("upload erro:",err);
-                      alert(`Erro ao carregar "${file.name}": ${err.message}`);
-                    }
-                  }
-                  setUploading(false);
-                }}/>
-              </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.publicado ? `${G.green}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.publicado ? G.green : G.border}`, transition: "all .2s", flex: 1 }}>
+          <div onClick={() => setForm(p => ({ ...p, publicado: !p.publicado }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.publicado ? G.green : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
+            <div style={{ position: "absolute", top: 2, left: form.publicado ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
+          </div>
+          <div><p style={{ fontSize: 13, fontWeight: 500, color: form.publicado ? G.green : G.text }}>Publicado</p></div>
+        </label>
+      </div>
+
+      <div style={{ gridColumn: "1/-1" }}>
+        <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Fotografias</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          {(form.fotos || []).map((src, idx) => (
+            <div key={idx} style={{ position: "relative", width: 80, height: 80 }}>
+              <img src={src} alt="" style={{ width: 80, height: 80, borderRadius: 8, objectFit: "cover" }} />
+              <button onClick={async () => {
+                if (dbReady && typeof src === "string" && src.startsWith("http")) { try { await deleteFoto(src); } catch (e) { console.warn("delete foto:", e); } }
+                setForm(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx) }));
+              }} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: G.red, border: "2px solid " + G.surface1, color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
             </div>
-            <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>{dbReady?"As fotos ficam guardadas para sempre. Máx 5MB cada. A primeira é a foto de capa.":"As fotos ficam guardadas durante a sessão. Máx 3MB cada."}</p>
-          </div>
-          <div style={{gridColumn:"1/-1"}}>
-            <p style={{fontSize:12,color:G.textMuted,marginBottom:10,textTransform:"uppercase",letterSpacing:".3px"}}>Localização</p>
-            <LocSelector
-              distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia}
-              onChange={({distrito,concelho,freguesia})=>setForm(p=>({...p,distrito,concelho,cidade:concelho,bairro:freguesia||concelho,freguesia}))}
-            />
-           <div style={{gridColumn:"1/-1"}}><label style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",padding:"12px 14px",background:form.destaque?`${G.gold1}15`:G.surface2,borderRadius:8,border:`1px solid ${form.destaque?G.gold1:G.border}`,transition:"all .2s"}}><div onClick={()=>setForm(p=>({...p,destaque:!p.destaque}))} style={{width:44,height:24,borderRadius:12,background:form.destaque?G.gold1:G.border,position:"relative",transition:"background .2s",cursor:"pointer",flexShrink:0}}><div style={{position:"absolute",top:2,left:form.destaque?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.3)"}}/></div><div><p style={{fontSize:13,fontWeight:500,color:form.destaque?G.gold1:G.text}}>Imóvel em Destaque</p><p style={{fontSize:11,color:G.textDim,marginTop:2}}>Aparece na homepage do site público</p></div></label></div>
-<Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e=>setForm(p=>({...p,bairro:e.target.value}))} placeholder="Ex: Chiado, Beira Mar..."/></Field>
-          </div>
-          <div style={{gridColumn:"1/-1"}}><Field label="Descrição"><textarea value={form.descricao||""} onChange={e=>setForm(p=>({...p,descricao:e.target.value}))} placeholder="Descrição do imóvel, características principais..." rows={3} style={{resize:"vertical"}}/></Field></div>
+          ))}
+          <label style={{ width: 80, height: 80, borderRadius: 8, border: `2px dashed ${G.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: uploading ? "wait" : "pointer", color: G.textMuted, gap: 4, opacity: uploading ? .5 : 1 }}>
+            {uploading ? <div className="spinner" style={{ width: 18, height: 18, border: `2px solid ${G.textDim}`, borderTopColor: G.gold1, borderRadius: "50%", animation: "spin .8s linear infinite" }} /> : <><Ic n="plus" s={18} c={G.textMuted} /><span style={{ fontSize: 10 }}>Adicionar</span></>}
+            <input type="file" accept="image/*" multiple disabled={uploading} style={{ display: "none" }} onChange={async e => {
+              const files = Array.from(e.target.files || []);
+              if (files.length === 0) return;
+              e.target.value = "";
+              if (!dbReady) {
+                files.forEach(file => {
+                  if (file.size > 3 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`); return; }
+                  const reader = new FileReader();
+                  reader.onload = ev => setForm(p => ({ ...p, fotos: [...(p.fotos || []), ev.target.result] }));
+                  reader.readAsDataURL(file);
+                });
+                return;
+              }
+              setUploading(true);
+              for (const file of files) {
+                if (file.size > 5 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 5MB).`); continue; }
+                try {
+                  const url = await uploadFoto(file);
+                  setForm(p => ({ ...p, fotos: [...(p.fotos || []), url] }));
+                } catch (err) { console.error("upload erro:", err); alert(`Erro ao carregar "${file.name}": ${err.message}`); }
+              }
+              setUploading(false);
+            }} />
+          </label>
         </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}><button className="btn-ghost" onClick={()=>setMod(false)}>Cancelar</button><button className="btn-gold" onClick={save}>{editId?"Guardar":"Cadastrar"}</button></div>
-      </Modal>}
+      </div>
+      <div style={{ gridColumn: "1/-1" }}>
+        <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Localização</p>
+        <LocSelector distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia} onChange={({ distrito, concelho, freguesia }) => setForm(p => ({ ...p, distrito, concelho, cidade: concelho, bairro: freguesia || concelho, freguesia }))} />
+        <Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e => setForm(p => ({ ...p, bairro: e.target.value }))} placeholder="Ex: Chiado, Beira Mar..." /></Field>
+      </div>
+      <div style={{ gridColumn: "1/-1" }}><Field label="Descrição"><textarea value={form.descricao || ""} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição do imóvel..." rows={3} style={{ resize: "vertical" }} /></Field></div>
+    </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}><button className="btn-ghost" onClick={() => setMod(false)}>Cancelar</button><button className="btn-gold" onClick={save}>{editId ? "Guardar" : "Cadastrar"}</button></div>
+  </Modal>
+)}
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
       {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
