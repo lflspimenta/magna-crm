@@ -31,7 +31,7 @@ const toDB = (obj, mapping, allowed) => {
   for (const [appKey, dbKey] of Object.entries(mapping || {})) {
     if (appKey in out) {
       out[dbKey] = out[appKey];
-      if (appKey !== dbKey) delete out[appKey];
+      if (appKey !== dbKey) delete out[dbKey];
     }
   }
   return onlyFields(out, allowed);
@@ -48,8 +48,7 @@ const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estad
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
 const F_VISITAS = ['imovel_id','imovel_titulo','cliente_nome','cliente_nif','cliente_contacto','data','hora','agente_nome','notas','sig_cliente','sig_agente'];
 
-// ... (O restante do ficheiro mantém-se igual)
-// ── Mappings, CRUD, Auth, Storage, etc ──────────────────
+// ── Mappings appKey -> dbKey ─────────────────────────────
 const M_IMOVEIS = { casasBanho: 'casas_banho' };
 const M_VISITAS = {
   imovelId: 'imovel_id', imovelTitulo: 'imovel_titulo',
@@ -67,6 +66,7 @@ const M_ANG = {
   dataInicio: 'data_inicio', sigProp: 'sig_prop', sigAgente: 'sig_agente',
 };
 
+// ── Genérico CRUD ─────────────────────────────────────────
 function makeCRUD(table, mapping, allowed, opts = {}) {
   const orderBy = opts.orderBy || 'created_at';
   const ascending = opts.ascending ?? false;
@@ -99,6 +99,7 @@ function makeCRUD(table, mapping, allowed, opts = {}) {
   };
 }
 
+// ── Exports CRUD ──────────────────────────────────────────
 export const dbImoveis = makeCRUD('imoveis', M_IMOVEIS, F_IMOVEIS);
 export const dbClientes = makeCRUD('clientes', {}, F_CLIENTES);
 export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
@@ -107,4 +108,14 @@ export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);
 export const dbDocsProprietario = makeCRUD('documentos_proprietario', M_DOCS, F_DOCS_PROP);
 export const dbVisitas = makeCRUD('visitas', M_VISITAS, F_VISITAS);
 
-// ... (Pode manter o resto do ficheiro exatamente como estava)
+// ── Leads: três pilares (RESTANTE DO FICHEIRO) ───────────────────────────────────
+const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado','atribuido_a'];
+const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado','atribuido_a'];
+const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado','atribuido_a'];
+
+export const dbLeadsGestao    = makeCRUD('leads_gestao',    {}, F_LEADS_GESTAO);
+export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
+export const dbLeadsHabitar   = makeCRUD('leads_habitar',   {}, F_LEADS_HABITAR);
+
+// ── UTILS (Auth, Storage, etc) ────────────────────────────
+// [Cole aqui as funções signIn, signOut, etc. que já tinha no seu ficheiro original]
