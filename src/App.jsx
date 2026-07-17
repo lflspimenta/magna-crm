@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar } from "./db.js";
+import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento } from "./db.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -2754,6 +2754,7 @@ const Ic = ({n,s=16,c="currentColor"}) => {
     home:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     building:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><rect x="3" y="2" width="18" height="20" rx="1"/><line x1="9" y1="22" x2="9" y2="2"/><line x1="3" y1="7" x2="9" y2="7"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="3" y1="17" x2="9" y2="17"/><line x1="9" y1="7" x2="21" y2="7"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="17" x2="21" y2="17"/></svg>,
     users:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+    key:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
     calendar:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
     search2:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>,
     plus:<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
@@ -3839,6 +3840,8 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
       foto: fotoMap[form.tipo] || "🏠",
       // Referência à angariação
       angariacao: { propNome: form.propNome, propNif: form.propNif, comissao: form.comissao, tipoMandato: form.tipoMandato },
+      // Ligação ao proprietário (criado quando a angariação foi assinada)
+      proprietario_id: form.proprietario_id || null,
     };
     setImoveis(prev => [novoImovel, ...prev]);
     setImportado(true);
@@ -3865,9 +3868,31 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
     else setStep("lista");
   };
 
+  // Cria ou associa o proprietário quando a angariação é assinada
+  const ligarProprietario = async (ang) => {
+    if (!dbReady || !ang || ang.proprietario_id) return ang;
+    try {
+      let prop = null;
+      if (ang.propNif) {
+        const todos = await dbProprietarios.list();
+        prop = todos.find(p => p.nif && p.nif === ang.propNif) || null;
+      }
+      if (!prop) {
+        prop = await dbProprietarios.insert({
+          nome: ang.propNome || "Proprietário", nif: ang.propNif || "",
+          email: ang.propEmail || "", telefone: ang.propTelefone || "",
+          morada: ang.propMorada || "", notas: "", estado: "Activo",
+        });
+      }
+      const updated = await dbAngariacoes.update(ang.id, { ...ang, proprietario_id: prop.id });
+      return { ...updated, proprietario_id: prop.id };
+    } catch (e) { console.error("ligar proprietario:", e); return ang; }
+  };
+
   const concluirAssinatura = async () => {
     const item = {...form, id: editId, sigProp, sigAgente, estado:"Assinado", dataModif: new Date().toISOString()};
-    const saved = await saveToDB(item);
+    let saved = await saveToDB(item);
+    saved = await ligarProprietario(saved);
     setLista(p=>p.map(a=>a.id===item.id?saved:a));
     setForm(saved);
     setStep("preview");
@@ -5340,6 +5365,269 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
   );
 };
 
+/* ══════════════ PROPRIETÁRIOS ══════════════ */
+const TIPOS_DOC = ["Caderneta Predial","Certidão Permanente","Certificado Energético","CMI","Licença de Utilização","Ficha Técnica de Habitação","Documento de Identificação","Procuração","Outro"];
+const emptyProp = { nome:"", nif:"", email:"", telefone:"", morada:"", notas:"", estado:"Activo" };
+
+const diasValidade = (d) => d ? Math.floor((new Date(d) - new Date()) / 86400000) : null;
+const corValidade = (dias) => dias === null ? G.textDim : dias < 30 ? G.red : dias < 90 ? G.gold1 : G.green;
+
+const PropForm = ({ form, setForm, onSave, onClose, editId }) => (
+  <Modal title={editId ? "Editar Proprietário" : "Novo Proprietário"} onClose={onClose}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div style={{gridColumn:"1/-1"}}><Field label="Nome completo *"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do proprietário"/></Field></div>
+      <Field label="NIF"><input value={form.nif} onChange={e=>setForm(p=>({...p,nif:e.target.value}))} placeholder="123456789"/></Field>
+      <Field label="Telefone"><input value={form.telefone} onChange={e=>setForm(p=>({...p,telefone:e.target.value}))} placeholder="912 345 678"/></Field>
+      <div style={{gridColumn:"1/-1"}}><Field label="E-mail"><input value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="email@exemplo.pt"/></Field></div>
+      <div style={{gridColumn:"1/-1"}}><Field label="Morada"><input value={form.morada} onChange={e=>setForm(p=>({...p,morada:e.target.value}))} placeholder="Rua, número, código postal, localidade"/></Field></div>
+      <Field label="Estado"><select value={form.estado} onChange={e=>setForm(p=>({...p,estado:e.target.value}))}><option>Activo</option><option>Inactivo</option></select></Field>
+      <div/>
+      <div style={{gridColumn:"1/-1"}}><Field label="Notas"><textarea value={form.notas} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Notas sobre o proprietário..." rows={3}/></Field></div>
+    </div>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+      <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+      <button className="btn-gold" onClick={onSave}>{editId ? "Guardar" : "Adicionar"}</button>
+    </div>
+  </Modal>
+);
+
+const Proprietarios = ({ mob }) => {
+  const [lista, setLista] = useState([]);
+  const [docs, setDocs] = useState([]);
+  const [imoveisProp, setImoveisProp] = useState([]);
+  const [search, setSrch] = useState("");
+  const [mod, setMod] = useState(false);
+  const [form, setForm] = useState(emptyProp);
+  const [editId, setEditId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [docMod, setDocMod] = useState(false);
+  const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (!dbReady) return;
+    (async () => {
+      try {
+        const [props, allDocs, allImoveis] = await Promise.all([
+          dbProprietarios.list(), dbDocsProprietario.list(), dbImoveis.list(),
+        ]);
+        setLista(props); setDocs(allDocs); setImoveisProp(allImoveis);
+      } catch (e) { console.error("load proprietarios:", e); }
+    })();
+  }, []);
+
+  const docsDe = (pid) => docs.filter(d => d.proprietarioId === pid);
+  const imoveisDe = (pid) => imoveisProp.filter(i => i.proprietario_id === pid);
+  const alertasDe = (pid) => docsDe(pid).filter(d => { const dd = diasValidade(d.validade); return dd !== null && dd < 30; });
+
+  const guardar = async () => {
+    if (!form.nome) return;
+    try {
+      if (editId) {
+        const saved = await dbProprietarios.update(editId, form);
+        setLista(p => p.map(x => x.id === editId ? saved : x));
+        if (detail && detail.id === editId) setDetail(saved);
+      } else {
+        const saved = await dbProprietarios.insert(form);
+        setLista(p => [saved, ...p]);
+      }
+      setMod(false); setForm(emptyProp); setEditId(null);
+    } catch (e) { alert("Erro ao guardar: " + e.message); }
+  };
+
+  const eliminar = async (p) => {
+    if (!confirm(`Eliminar o proprietário "${p.nome}" e todos os seus documentos? Esta acção é permanente.`)) return;
+    try {
+      for (const d of docsDe(p.id)) await deleteDocumento(d.url);
+      await dbProprietarios.remove(p.id);
+      setLista(l => l.filter(x => x.id !== p.id));
+      setDocs(ds => ds.filter(d => d.proprietarioId !== p.id));
+      if (detail && detail.id === p.id) setDetail(null);
+    } catch (e) { alert("Erro: " + e.message); }
+  };
+
+  const guardarDoc = async () => {
+    if (!docForm.file || !detail) return;
+    setUploading(true);
+    try {
+      const url = await uploadDocumento(docForm.file, detail.id);
+      const novo = await dbDocsProprietario.insert({
+        proprietarioId: detail.id, tipo: docForm.tipo,
+        nomeFicheiro: docForm.file.name, url,
+        validade: docForm.validade || null, notas: docForm.notas,
+      });
+      setDocs(d => [novo, ...d]);
+      setDocMod(false);
+      setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
+    } catch (e) { alert("Erro no upload: " + e.message); }
+    setUploading(false);
+  };
+
+  const eliminarDoc = async (d) => {
+    if (!confirm(`Eliminar o documento "${d.nomeFicheiro}"?`)) return;
+    try {
+      await deleteDocumento(d.url);
+      await dbDocsProprietario.remove(d.id);
+      setDocs(ds => ds.filter(x => x.id !== d.id));
+    } catch (e) { alert("Erro: " + e.message); }
+  };
+
+  const filtered = lista.filter(p =>
+    p.nome.toLowerCase().includes(search.toLowerCase()) || (p.nif || "").includes(search)
+  );
+
+  // ── DETALHE ──
+  if (detail) {
+    const pDocs = docsDe(detail.id);
+    const pImoveis = imoveisDe(detail.id);
+    return (
+      <div>
+        <button onClick={() => setDetail(null)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:8,color:G.textMuted,fontSize:13,marginBottom:20,fontFamily:"'DM Sans',sans-serif"}}>← Voltar aos proprietários</button>
+
+        <div className="card" style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:22,color:"#0E0E0F"}}>{detail.nome.charAt(0)}</div>
+              <div>
+                <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600}}>{detail.nome}</h2>
+                <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
+                  <span className="tag" style={{background:detail.estado==="Activo"?`${G.green}18`:G.surface3,color:detail.estado==="Activo"?G.green:G.textDim}}>{detail.estado}</span>
+                  {detail.nif && <span className="tag" style={{background:G.surface3,color:G.textMuted}}>NIF {detail.nif}</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button className="btn-ghost" onClick={()=>{setForm({...detail});setEditId(detail.id);setMod(true);}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
+              <button className="btn-ghost" onClick={()=>eliminar(detail)} style={{borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(2,1fr)",gap:10,marginTop:18}}>
+            {detail.email && <div style={{display:"flex",gap:8,alignItems:"center"}}><Ic n="mail" s={14} c={G.textDim}/><span style={{fontSize:13,color:G.textMuted}}>{detail.email}</span></div>}
+            {detail.telefone && <div style={{display:"flex",gap:8,alignItems:"center"}}><Ic n="phone" s={14} c={G.textDim}/><span style={{fontSize:13,color:G.textMuted}}>{detail.telefone}</span></div>}
+            {detail.morada && <div style={{display:"flex",gap:8,alignItems:"center",gridColumn:mob?"auto":"1 / -1"}}><Ic n="location" s={14} c={G.textDim}/><span style={{fontSize:13,color:G.textMuted}}>{detail.morada}</span></div>}
+          </div>
+          {detail.notas && <p style={{fontSize:13,color:G.textDim,fontStyle:"italic",marginTop:14,borderTop:`1px solid ${G.border}`,paddingTop:12}}>{detail.notas}</p>}
+        </div>
+
+        <div className="card" style={{marginBottom:16}}>
+          <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:14}}>Imóveis ({pImoveis.length})</h3>
+          {pImoveis.length === 0 && <p style={{fontSize:13,color:G.textDim}}>Sem imóveis associados. Os imóveis ligam-se automaticamente ao importar uma angariação assinada.</p>}
+          {pImoveis.map(im => (
+            <div key={im.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${G.border}`}}>
+              <div>
+                <p style={{fontSize:14,fontWeight:500}}>{im.titulo}</p>
+                <span style={{fontSize:12,color:G.textDim}}>{im.concelho || im.distrito} · {im.status}</span>
+              </div>
+              <span style={{fontSize:13,color:G.gold1,fontWeight:500}}>{fmtFull(im.valor)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="card">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1}}>Documentos ({pDocs.length})</h3>
+            <button className="btn-gold" onClick={()=>setDocMod(true)} style={{padding:"8px 14px",fontSize:11}}>+ Documento</button>
+          </div>
+          {pDocs.length === 0 && <p style={{fontSize:13,color:G.textDim}}>Nenhum documento. Adicione a caderneta, certidão, CMI e restantes documentos.</p>}
+          {pDocs.map(d => {
+            const dias = diasValidade(d.validade);
+            return (
+              <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${G.border}`,gap:10}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <p style={{fontSize:14,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.nomeFicheiro}</p>
+                  <div style={{display:"flex",gap:8,marginTop:3,flexWrap:"wrap",alignItems:"center"}}>
+                    <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{d.tipo}</span>
+                    {d.validade && (
+                      <span style={{fontSize:11,color:corValidade(dias),fontWeight:500}}>
+                        {dias < 0 ? "⚠ Expirado" : dias < 30 ? `⚠ Expira em ${dias} dias` : `Válido até ${new Date(d.validade).toLocaleDateString("pt-PT")}`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <a href={d.url} target="_blank" rel="noreferrer" style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",display:"flex",textDecoration:"none"}}><Ic n="eye" s={14} c={G.textMuted}/></a>
+                  <button onClick={()=>eliminarDoc(d)} style={{background:"none",border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",cursor:"pointer",display:"flex"}}><Ic n="trash" s={14} c={G.red}/></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {docMod && (
+          <Modal title="Novo Documento" onClose={()=>!uploading&&setDocMod(false)}>
+            <Field label="Tipo de documento">
+              <select value={docForm.tipo} onChange={e=>setDocForm(p=>({...p,tipo:e.target.value}))}>
+                {TIPOS_DOC.map(t=><option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Ficheiro (PDF ou imagem)">
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocForm(p=>({...p,file:e.target.files[0]||null}))}/>
+            </Field>
+            <Field label="Validade (opcional)">
+              <input type="date" value={docForm.validade} onChange={e=>setDocForm(p=>({...p,validade:e.target.value}))}/>
+            </Field>
+            <Field label="Notas (opcional)">
+              <input value={docForm.notas} onChange={e=>setDocForm(p=>({...p,notas:e.target.value}))} placeholder="Ex: fracção B, 2.º direito"/>
+            </Field>
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+              <button className="btn-ghost" disabled={uploading} onClick={()=>setDocMod(false)}>Cancelar</button>
+              <button className="btn-gold" disabled={uploading||!docForm.file} onClick={guardarDoc}>{uploading?"A carregar...":"Guardar documento"}</button>
+            </div>
+          </Modal>
+        )}
+
+        {mod && <PropForm form={form} setForm={setForm} onSave={guardar} onClose={()=>{setMod(false);setForm(emptyProp);setEditId(null);}} editId={editId}/>}
+      </div>
+    );
+  }
+
+  // ── LISTA ──
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
+        <div>
+          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?24:30,fontWeight:600}}>Proprietários</h1>
+          <p style={{color:G.textDim,fontSize:13,marginTop:2}}>{lista.length} {lista.length===1?"proprietário":"proprietários"}</p>
+        </div>
+        <button className="btn-gold" onClick={()=>{setForm(emptyProp);setEditId(null);setMod(true);}}>+ Novo Proprietário</button>
+      </div>
+
+      <div style={{position:"relative",marginBottom:20}}>
+        <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}><Ic n="search2" s={15} c={G.textDim}/></span>
+        <input placeholder="Pesquisar por nome ou NIF..." value={search} onChange={e=>setSrch(e.target.value)} style={{paddingLeft:36}}/>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+        {filtered.map(p => {
+          const nAl = alertasDe(p.id).length;
+          return (
+            <div key={p.id} className="card" style={{cursor:"pointer"}} onClick={()=>setDetail(p)}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:"#0E0E0F"}}>{p.nome.charAt(0)}</div>
+                  <div>
+                    <p style={{fontWeight:500,fontSize:15}}>{p.nome}</p>
+                    {p.nif && <span style={{fontSize:12,color:G.textDim}}>NIF {p.nif}</span>}
+                  </div>
+                </div>
+                {nAl > 0 && <span className="tag" style={{background:`${G.red}18`,color:G.red,fontWeight:500}}>⚠ {nAl}</span>}
+              </div>
+              <div style={{display:"flex",gap:10,fontSize:12,color:G.textMuted}}>
+                <span>🏠 {imoveisDe(p.id).length} imóveis</span>
+                <span>📄 {docsDe(p.id).length} documentos</span>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <p style={{color:G.textDim,fontSize:14,gridColumn:"1/-1"}}>Nenhum proprietário. Cria manualmente ou assina uma angariação — o proprietário é criado automaticamente.</p>}
+      </div>
+
+      {mod && <PropForm form={form} setForm={setForm} onSave={guardar} onClose={()=>{setMod(false);setForm(emptyProp);setEditId(null);}} editId={editId}/>}
+    </div>
+  );
+};
+
 const Clientes=({clientes,setClientes,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
@@ -5915,6 +6203,7 @@ export default function App() {
   {id:"angariações", label:"Angariações",  icon:"file"},
   {id:"imoveis",     label:"Imóveis",      icon:"building"},
   {id:"clientes",    label:"Clientes",     icon:"users"},
+  {id:"proprietarios", label:"Proprietários", icon:"key"},
   {id:"funil",       label:"Funil",        icon:"chart"},
   {id:"agenda",      label:"Agenda",       icon:"calendar"},
   {id:"prospeccao",  label:"IA",           icon:"spark"},
@@ -5959,6 +6248,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
+            {page==="proprietarios"&&<Proprietarios mob={false}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
@@ -5991,6 +6281,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
+            {page==="proprietarios"&&<Proprietarios mob={true}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}

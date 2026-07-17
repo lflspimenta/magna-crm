@@ -41,14 +41,20 @@ const toDB = (obj, mapping, allowed) => {
 };
 
 // ── Campos válidos por tabela (snake_case) ──────────────
-const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque'];
+const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque','proprietario_id'];
 const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','tipologia','obs'];
 const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas'];
-const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','prazo','data_inicio','estado','sig_prop','sig_agente'];
+const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','prazo','data_inicio','estado','sig_prop','sig_agente','proprietario_id'];
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
+const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
+const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
 
 // ── Mappings appKey -> dbKey ─────────────────────────────
 const M_IMOVEIS = { casasBanho: 'casas_banho' };
+const M_DOCS = {
+  proprietarioId: 'proprietario_id', imovelId: 'imovel_id',
+  nomeFicheiro: 'nome_ficheiro', dadosExtraidos: 'dados_extraidos',
+};
 const M_ANG = {
   propNome: 'prop_nome', propNif: 'prop_nif', propEmail: 'prop_email',
   propTelefone: 'prop_telefone', propMorada: 'prop_morada',
@@ -94,6 +100,8 @@ export const dbImoveis = makeCRUD('imoveis', M_IMOVEIS, F_IMOVEIS);
 export const dbClientes = makeCRUD('clientes', {}, F_CLIENTES);
 export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
 export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
+export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);
+export const dbDocsProprietario = makeCRUD('documentos_proprietario', M_DOCS, F_DOCS_PROP);
 
 // ── UTILIZADORES via Supabase Auth ────────────────────────
 // Dados do perfil (nome, cargo, avatar, role) vivem na tabela 'utilizadores'
@@ -238,4 +246,32 @@ export async function deleteFotos(urls) {
   if (paths.length === 0) return;
   const { error } = await supa.storage.from(BUCKET).remove(paths);
   if (error) console.warn('delete fotos:', error.message);
+}
+
+// ── STORAGE: Documentos de proprietários ──────────────────
+const BUCKET_DOCS = 'documentos-proprietarios';
+
+// Upload de documento (PDF/imagem) → URL público
+export async function uploadDocumento(file, proprietarioId) {
+  if (!supa) throw new Error('Supabase não configurado');
+  if (!file) throw new Error('Ficheiro inválido');
+  const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+  const name = `${proprietarioId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supa.storage.from(BUCKET_DOCS).upload(name, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'application/pdf',
+  });
+  if (error) { console.error('upload documento:', error); throw new Error(error.message); }
+  const { data } = supa.storage.from(BUCKET_DOCS).getPublicUrl(name);
+  return data.publicUrl;
+}
+
+// Apaga um documento do bucket dado o seu URL público
+export async function deleteDocumento(url) {
+  if (!supa || !url) return;
+  const match = url.match(new RegExp(`/${BUCKET_DOCS}/(.+)$`));
+  if (!match) return;
+  const { error } = await supa.storage.from(BUCKET_DOCS).remove([match[1]]);
+  if (error) console.warn('delete documento:', error.message);
 }
