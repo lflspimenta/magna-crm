@@ -3630,11 +3630,10 @@ const SignaturePad = ({ label, onSave, saved }) => {
 
 // Generate Angariação PDF
 // ── Ficha de Visita (Fase 3) ─────────────────────────────
-const gerarPDFVisita = (v, imovel, agente) => {
-  const win = window.open("","_blank");
+const htmlFichaVisita = (v, imovel, incluirPrint = true) => {
   const dataFmt = new Date(v.data).toLocaleDateString("pt-PT");
   const loc = imovel ? [imovel.morada, imovel.freguesia, imovel.concelho, imovel.distrito].filter(Boolean).join(", ") : "";
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Ficha de Visita — ${v.clienteNome}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
@@ -3695,7 +3694,7 @@ ${v.notas?`<div class="field" style="margin-top:10px"><div class="field-label">O
   </div>
   <div class="sig-box">
     <p style="font-size:12px;color:#888;margin-bottom:8px">Pela Mediadora</p>
-    <div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>
+    ${v.sigAgente?`<img src="${v.sigAgente}" class="sig-img" alt="Assinatura Agente"/>`:`<div style="height:70px;border-bottom:1px solid #333;margin-bottom:8px"></div>`}
     <div class="sig-line">${v.agenteNome}<br/><span style="color:#888">Magna Group Real Estate</span></div>
   </div>
 </div>
@@ -3703,7 +3702,12 @@ ${v.notas?`<div class="field" style="margin-top:10px"><div class="field-label">O
 <div class="footer">
   Magna Group Real Estate · Ficha de visita gerada em ${new Date().toLocaleDateString("pt-PT")} · Documento com valor probatório da apresentação do imóvel.
 </div>
-</div><script>window.print();window.onafterprint=()=>window.close();</script></body></html>`);
+</div>${incluirPrint?`<script>window.print();window.onafterprint=()=>window.close();</scr`+`ipt>`:""}</body></html>`;
+};
+
+const gerarPDFVisita = (v, imovel, agente) => {
+  const win = window.open("","_blank");
+  win.document.write(htmlFichaVisita(v, imovel, true));
   win.document.close();
 };
 
@@ -5058,6 +5062,7 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
     notas:"",
   });
   const [sigCliente, setSigCliente] = useState(null);
+  const [sigAgenteV, setSigAgenteV] = useState(null);
   const [saving, setSaving] = useState(false);
   const [clienteSel, setClienteSel] = useState("");
 
@@ -5075,9 +5080,28 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
         imovelId: imovel.id, imovelTitulo: imovel.titulo,
         clienteNome: v.clienteNome, clienteNif: v.clienteNif, clienteContacto: v.clienteContacto,
         data: v.data, hora: v.hora, agenteNome: user.nome,
-        notas: v.notas, sigCliente,
+        notas: v.notas, sigCliente, sigAgente: sigAgenteV,
       };
       if (dbReady) await dbVisitas.insert(registo);
+      // Arquivar a ficha assinada no dossier do proprietário (se o imóvel tiver um)
+      if (dbReady && imovel.proprietario_id) {
+        try {
+          const html = htmlFichaVisita(registo, imovel, false);
+          const blob = new Blob([html], { type: "text/html" });
+          const nomeFich = `Ficha de Visita — ${v.clienteNome} — ${new Date(v.data).toLocaleDateString("pt-PT")}.html`;
+          const file = new File([blob], nomeFich, { type: "text/html" });
+          const url = await uploadDocumento(file, imovel.proprietario_id);
+          await dbDocsProprietario.insert({
+            proprietarioId: imovel.proprietario_id,
+            imovelId: imovel.id,
+            tipo: "Ficha de Visita",
+            nomeFicheiro: nomeFich,
+            url,
+            validade: null,
+            notas: `Visita de ${v.clienteNome} em ${new Date(v.data).toLocaleDateString("pt-PT")}${v.hora?` às ${v.hora}`:""}`,
+          });
+        } catch (e) { console.error("arquivar ficha no dossier:", e); }
+      }
       if (gerarPdf) gerarPDFVisita(registo, imovel, user);
       onClose();
     } catch (e) { alert("Erro ao guardar a visita: " + e.message); }
@@ -5104,6 +5128,7 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
       </div>
 
       <SignaturePad label="Assinatura do visitante" onSave={setSigCliente} saved={sigCliente}/>
+      <SignaturePad label={`Assinatura do agente (${user.nome})`} onSave={setSigAgenteV} saved={sigAgenteV}/>
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16,flexWrap:"wrap"}}>
         <button className="btn-ghost" disabled={saving} onClick={onClose}>Cancelar</button>
@@ -5559,7 +5584,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob}) => {
 };
 
 /* ══════════════ PROPRIETÁRIOS ══════════════ */
-const TIPOS_DOC = ["Caderneta Predial","Certidão Permanente","Certificado Energético","CMI","Licença de Utilização","Ficha Técnica de Habitação","Documento de Identificação","Procuração","Outro"];
+const TIPOS_DOC = ["Caderneta Predial","Certidão Permanente","Certificado Energético","CMI","Ficha de Visita","Licença de Utilização","Ficha Técnica de Habitação","Documento de Identificação","Procuração","Outro"];
 const emptyProp = { nome:"", nif:"", email:"", telefone:"", morada:"", notas:"", estado:"Activo" };
 
 const diasValidade = (d) => d ? Math.floor((new Date(d) - new Date()) / 86400000) : null;
