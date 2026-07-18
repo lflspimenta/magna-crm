@@ -5247,10 +5247,9 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
     </Modal>
   );
 };
-
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
-  const [fotoIdx,setFotoIdx]=useState(0);
-  const fotos=imovel.fotos||[];
+const ImovelDetalhe = ({imovel, clientes, onClose, onEdit, onMkt, onDelete, onVisita, mob}) => {
+  const [fotoIdx, setFotoIdx] = useState(0);
+  const fotos = imovel.fotos || [];
   const temFotos=fotos.length>0;
   const loc=[imovel.freguesia,imovel.concelho,imovel.distrito].filter(Boolean).join(", ")||imovel.bairro||"—";
   return(
