@@ -2623,15 +2623,7 @@ const getDistritos  = () => Object.keys(PT_LOC).sort();
 const getConcelhos  = (d) => d && PT_LOC[d] ? Object.keys(PT_LOC[d]).sort() : [];
 const getFreguesias = (d, c) => d && c && PT_LOC[d]?.[c] ? [...PT_LOC[d][c]].sort() : [];
 
-const encontrarClientesParaImovel = (imovel, clientes) => {
-  return clientes.filter(c => {
-    const interesseMatch = (imovel.finalidade === "Venda" ? "Comprar" : "Arrendar") === c.interesse;
-    const orcamentoMatch = (c.orcamento >= imovel.valor * 0.85 && c.orcamento <= imovel.valor * 1.15) || Number(c.orcamento) === 0;
-    const zonaMatch = !c.bairros || c.bairros.toLowerCase().includes(imovel.bairro.toLowerCase()) || c.bairros.toLowerCase().includes(imovel.concelho.toLowerCase());
-    const tipoMatch = !c.tipologia || c.tipologia.length === 0 || c.tipologia.some(t => t.toLowerCase().includes(imovel.tipo.toLowerCase()));
-    return interesseMatch && orcamentoMatch && zonaMatch && tipoMatch;
-  });
-};
+
 const fmt = (v, monthly=false) => {
   const n = Number(v);
   if (isNaN(n)) return "—";
@@ -5247,9 +5239,10 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
     </Modal>
   );
 };
-const ImovelDetalhe = ({imovel, clientes, onClose, onEdit, onMkt, onDelete, onVisita, mob}) => {
-  const [fotoIdx, setFotoIdx] = useState(0);
-  const fotos = imovel.fotos || [];
+
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
+  const [fotoIdx,setFotoIdx]=useState(0);
+  const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
   const loc=[imovel.freguesia,imovel.concelho,imovel.distrito].filter(Boolean).join(", ")||imovel.bairro||"—";
   return(
@@ -5319,28 +5312,12 @@ const ImovelDetalhe = ({imovel, clientes, onClose, onEdit, onMkt, onDelete, onVi
         </div>
       </div>
 
-     {/* Descrição */}
+      {/* Descrição */}
       {imovel.descricao&&<div style={{marginBottom:18}}>
         <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Descrição</p>
         <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7}}>{imovel.descricao}</p>
       </div>}
 
-      {/* Matching Automático */}
-      <div className="card" style={{marginTop:18, background:G.gold1+"05", border:`1px solid ${G.gold1}30`}}>
-        <p style={{fontSize:11, color:G.gold1, marginBottom:10, textTransform:"uppercase", letterSpacing:".5px"}}>✨ Matching Automático</p>
-        {encontrarClientesParaImovel(imovel, clientes).length > 0 ? (
-          <div style={{display:"flex", flexDirection:"column", gap:8}}>
-            {encontrarClientesParaImovel(imovel, clientes).map(c => (
-              <div key={c.id} style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                <span style={{fontSize:13, fontWeight:500}}>{c.nome}</span>
-                <a href={`mailto:${c.email}`} style={{fontSize:11, color:G.blue, textDecoration:"none"}}>Contactar</a>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{fontSize:12, color:G.textMuted}}>Nenhum cliente com perfil coincidente encontrado.</p>
-        )}
-      </div>
       {/* Ações */}
       <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
         <button className="btn-gold" onClick={onMkt} style={{flex:mob?"1 1 100%":1}}><Ic n="spark" s={14} c="#0E0E0F"/>Avaliar com IA</button>
