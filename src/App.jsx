@@ -7061,10 +7061,14 @@ h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#
 .footer-logo{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:#C9A84C;letter-spacing:2px;margin-bottom:6px}
 .footer-text{font-size:9.5px;color:#F5EFE380;letter-spacing:.3px}
 
+#btn-gerar-pdf{position:fixed;bottom:24px;right:24px;background:#C9A84C;color:#0E0E0F;border:none;border-radius:30px;padding:14px 28px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:999}
+#btn-gerar-pdf:hover{background:#DBB85E}
+
 @media print{
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .scenario{page-break-inside:avoid}
   .section{page-break-inside:avoid}
+  #btn-gerar-pdf{display:none}
 }
 </style></head><body><div class="page">
 
@@ -7251,7 +7255,8 @@ ${isTerreno ? `
   <div class="footer-text">Real Estate · Dossier preparado por ${agente?agente.nome:"—"} · ${hoje} · Documento confidencial, uso exclusivo do destinatário.</div>
 </div>
 
-</div><script>window.print();window.onafterprint=()=>window.close();</script></body></html>`;
+<button id="btn-gerar-pdf" onclick="window.print()">Gerar PDF</button>
+</div></body></html>`;
 };
 // Constrói a narrativa de abertura do dossier a partir de dados estruturados —
 // nunca reaproveita o "recomendacao" da Avaliação de Mercado, que é conselho de
