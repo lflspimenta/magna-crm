@@ -5665,7 +5665,7 @@ const TipologiaSelector = ({ value = [], onChange }) => {
   );
 };
 
-const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:"", perfilCliente:"comprador_tradicional", requisitosEspecificos:{}};
+
 // ── FICHA DETALHADA DO CLIENTE ────────────────────────────────
 const partilharCliente = async (c) => {
   const texto = `👤 ${c.nome}\n📞 ${c.telefone||"—"}\n✉️ ${c.email||"—"}\n💼 ${c.interesse} · Até ${fmtFull(c.orcamento)}${c.interesse==="Arrendar"?"/mês":""}\n📍 ${c.bairros||"—"}\n${c.obs?"\n"+c.obs:""}\n\nMagna Group Real Estate`;
