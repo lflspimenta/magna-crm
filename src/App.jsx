@@ -5249,7 +5249,7 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
   );
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5335,7 +5335,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
         <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
-	<button className="btn-gold" onClick={() => gerarDossierInvestidor(imovel)} style={{flex:mob?"1 1 100%":1}}>
+	<button className="btn-gold" onClick={onDossier} style={{flex:mob?"1 1 100%":1}}>
   	<Ic n="pdf" s={14} c="#0E0E0F"/> Dossier Investidor
 	</button>
       </div>
@@ -5352,6 +5352,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
   const [mktIm,setMktIm]=useState(null);
   const [detailIm,setDetailIm]=useState(null);
   const [visitaIm,setVisitaIm]=useState(null);
+  const [dossierIm,setDossierIm]=useState(null);
   const [uploading,setUploading]=useState(false);
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.titulo)return;const d={...form,status:(form.status||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""),valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
@@ -5564,8 +5565,9 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
       {visitaIm&&<RegistarVisita imovel={visitaIm} clientes={clientes} user={user} onClose={()=>setVisitaIm(null)} mob={mob}/>}
+      {dossierIm&&<GerarDossierInvestidor imovel={dossierIm} user={user} onClose={()=>setDossierIm(null)}/>}
     </div>
   );
 };
@@ -6809,106 +6811,405 @@ h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#
 // ==========================================
 // 2. DOSSIER DE INVESTIDOR (Imóveis - Versão Avançada & IA)
 // ==========================================
-const gerarDossierInvestidor = (imovel) => {
+
+// Tabela IMT 2026 (Continente) — Habitação Própria e Permanente
+// Fonte: Ofício Circulado 40129/2026 AT / OE2026. Confirmar em portaldasfinancas.gov.pt.
+const ESCALOES_IMT_HPP = [
+  { ate: 106346,  taxa: 0,    parcela: 0 },
+  { ate: 145470,  taxa: 0.02, parcela: 2127 },
+  { ate: 198347,  taxa: 0.05, parcela: 6491 },
+  { ate: 330539,  taxa: 0.07, parcela: 10458 },
+  { ate: 660982,  taxa: 0.08, parcela: 13763 },
+  { ate: 1150853, taxa: 0.06, parcela: 0, unica: true },
+  { ate: Infinity,taxa: 0.075,parcela: 0, unica: true },
+];
+// Não-HPP (segunda habitação / investimento) — estrutura aproximada (1º escalão sem isenção,
+// limiar da taxa única mais baixo). VALORES A CONFIRMAR antes de apresentar ao investidor.
+const ESCALOES_IMT_NHPP = [
+  { ate: 106346,  taxa: 0.01, parcela: 0 },
+  { ate: 145470,  taxa: 0.02, parcela: 1063 },
+  { ate: 198347,  taxa: 0.05, parcela: 5427 },
+  { ate: 330539,  taxa: 0.07, parcela: 9394 },
+  { ate: 574323,  taxa: 0.08, parcela: 12699 },
+  { ate: 1150853, taxa: 0.06, parcela: 0, unica: true },
+  { ate: Infinity,taxa: 0.075,parcela: 0, unica: true },
+];
+const calcIMT = (valor, tipo = "nhpp") => {
+  const tab = tipo === "hpp" ? ESCALOES_IMT_HPP : ESCALOES_IMT_NHPP;
+  for (const e of tab) {
+    if (valor <= e.ate) return e.unica ? valor * e.taxa : Math.max(0, valor * e.taxa - e.parcela);
+  }
+  return 0;
+};
+const calcSelo = (valor) => valor * 0.008; // Imposto do Selo — 0,8% da base tributável
+
+const CAPEX_M2 = {
+  "Novo / Sem obras": 0,
+  "Bom estado / Cosmético": 150,
+  "A necessitar de obras moderadas": 400,
+  "A necessitar de reabilitação profunda": 800,
+};
+
+// Cálculo completo das métricas de investimento
+const calcMetricasInvestimento = (input) => {
+  const {
+    precoAquisicao, area, precoM2Mercado, rendaMensal,
+    estadoImovel, tipoIMT, emolumentos, imiPercent,
+    condominioMensal, seguroAnual, vacanciaPercent,
+    capitalPropriPercent, taxaJuro, valorizacaoAnual, prazoFlipMeses,
+  } = input;
+
+  const precoM2Imovel = area > 0 ? precoAquisicao / area : 0;
+  const descontoMercado = precoM2Mercado > 0 ? ((precoM2Mercado - precoM2Imovel) / precoM2Mercado) * 100 : 0;
+
+  const imt = calcIMT(precoAquisicao, tipoIMT);
+  const selo = calcSelo(precoAquisicao);
+  const custosTransacao = imt + selo + Number(emolumentos || 0);
+
+  const capexM2 = CAPEX_M2[estadoImovel] ?? 0;
+  const capex = capexM2 * area;
+
+  const investimentoTotal = precoAquisicao + custosTransacao + capex;
+
+  const rendaAnual = rendaMensal * 12;
+  const yieldBruta = investimentoTotal > 0 ? (rendaAnual / investimentoTotal) * 100 : 0;
+
+  const imiAnual = precoAquisicao * (Number(imiPercent || 0.4) / 100);
+  const vacancia = rendaAnual * (Number(vacanciaPercent || 5) / 100);
+  const custosFixosAnuais = imiAnual + Number(condominioMensal || 0) * 12 + Number(seguroAnual || 0) + vacancia;
+
+  const cppFrac = Number(capitalPropriPercent || 100) / 100;
+  const financiamento = investimentoTotal * (1 - cppFrac);
+  const jurosAnuais = financiamento * (Number(taxaJuro || 0) / 100);
+
+  const cashFlowLiquido = rendaAnual - custosFixosAnuais - jurosAnuais;
+  const yieldLiquida = investimentoTotal > 0 ? ((rendaAnual - custosFixosAnuais) / investimentoTotal) * 100 : 0;
+
+  const cashInvestido = investimentoTotal * cppFrac;
+  const cashOnCash = cashInvestido > 0 ? (cashFlowLiquido / cashInvestido) * 100 : 0;
+
+  // Cenário C — Flip com obras
+  const valorPosObras = precoAquisicao + capex * 1.2;
+  const valAnual = Number(valorizacaoAnual || 0) / 100;
+  const meses = Number(prazoFlipMeses || 12);
+  const valorProjectado = valorPosObras * Math.pow(1 + valAnual, meses / 12);
+  const maisValia = valorProjectado - investimentoTotal;
+
+  // Cenário D — Compra e revenda sem obras (captura o desconto de aquisição, prazo curto)
+  const mesesRevendaRapida = Math.min(meses, 6);
+  const investimentoSemObras = precoAquisicao + custosTransacao;
+  const valorRevendaRapida = precoAquisicao * Math.pow(1 + valAnual, mesesRevendaRapida / 12);
+  const ganhoRevendaRapida = valorRevendaRapida - investimentoSemObras;
+
+  return {
+    precoM2Imovel, descontoMercado, imt, selo, custosTransacao, capex, capexM2,
+    investimentoTotal, rendaAnual, yieldBruta, imiAnual, vacancia, custosFixosAnuais,
+    financiamento, jurosAnuais, cashFlowLiquido, yieldLiquida, cashInvestido, cashOnCash,
+    valorPosObras, valorProjectado, maisValia, meses,
+    mesesRevendaRapida, investimentoSemObras, valorRevendaRapida, ganhoRevendaRapida,
+  };
+};
+
+// Pesquisa de mercado assistida por IA (usa web search via callClaude)
+const pesquisarMercadoInvestidor = async (imovel) => {
+  const loc = [imovel.freguesia, imovel.concelho, imovel.distrito].filter(Boolean).join(", ");
+  const prompt = `Pesquisa dados de mercado imobiliário actuais para esta localização em Portugal: ${loc}. Tipo de imóvel: ${imovel.tipo || "apartamento"}.
+Preciso de:
+1. Preço médio de venda por m² nesta freguesia/concelho (pesquisa fontes como Idealista, Confidencial Imobiliário, INE)
+2. Renda mensal média de mercado para um imóvel semelhante (tipologia ${imovel.tipo||""}, ${imovel.area||""}m²) nesta zona
+3. Valorização anual média histórica do imobiliário nesta zona (%)
+4. Três a quatro argumentos concretos e específicos sobre esta localização que justifiquem o investimento (transportes, desenvolvimento urbano, procura, proximidade a pólos de emprego/turismo/universidades, etc.)
+
+Responde APENAS com um JSON neste formato exacto, sem markdown nem texto adicional:
+{"preco_m2_medio": 0, "renda_mensal_sugerida": 0, "valorizacao_anual_pct": 0, "argumentos": ["...", "...", "..."], "fonte_precos": "..."}`;
+
+  const raw = await callClaude(prompt, "claude-sonnet-4-6", true);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Não foi possível interpretar os dados de mercado.");
+  return JSON.parse(match[0]);
+};
+
+// HTML do Dossier de Investimento
+const htmlDossierInvestidor = (imovel, mercado, m, agente) => {
+  const loc = [imovel.freguesia, imovel.concelho, imovel.distrito].filter(Boolean).join(", ");
   const hoje = new Date().toLocaleDateString("pt-PT");
-  const precoAquisicao = imovel?.valor || 250000;
-  const areaImovel = imovel?.area || 100;
-  
-  // Métricas financeiras e rácios de investimento
-  const precoM2Aquisicao = areaImovel > 0 ? Math.round(precoAquisicao / areaImovel) : 2500;
-  const precoM2MercadoEst = Math.round(precoM2Aquisicao * 1.12); // Simulação de 12% abaixo do mercado de referência
-  const valorTotalMercadoEst = precoM2MercadoEst * areaImovel;
-  const descontoImediato = valorTotalMercadoEst - precoAquisicao;
-  const percentagemDesconto = ((descontoImediato / valorTotalMercadoEst) * 100).toFixed(1);
+  const eur = (v) => Number(v||0).toLocaleString("pt-PT",{maximumFractionDigits:0}) + " €";
+  const pct = (v) => Number(v||0).toLocaleString("pt-PT",{maximumFractionDigits:1}) + "%";
 
-  const custoObras = imovel?.orcamentoObras || Math.round(precoAquisicao * 0.12);
-  const investimentoTotal = precoAquisicao + custoObras;
-  const rendaMensalEst = imovel?.rendaMensal || Math.round(precoAquisicao * 0.0065); // ~0.65% mensal
-  const yieldBruta = ((rendaMensalEst * 12) / precoAquisicao * 100).toFixed(2);
-  
-  // Custos fixos anuais estimados (IMI, condomínio, vacância 5%)
-  const custosAnuaisEstimados = (rendaMensalEst * 12) * 0.12; 
-  const rendaLiquidaAnual = (rendaMensalEst * 12) - custosAnuaisEstimados;
-  const yieldLiquida = (rendaLiquidaAnual / investimentoTotal * 100).toFixed(2);
-
-  const win = window.open("", "_blank");
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Dossier de Oportunidade Estratégica — ${imovel?.titulo || "Ativo Premium"}</title>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Dossier de Investimento — ${imovel.titulo}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;color:#1c1c1c;background:#fff;line-height:1.6}
+body{font-family:'DM Sans',sans-serif;color:#1a1a1a;background:#fff;font-size:13.5px;line-height:1.6}
 .page{max-width:820px;margin:0 auto;padding:50px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;padding-bottom:15px;border-bottom:2px solid #C9A84C}
-.logo-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#8B6914;letter-spacing:2px}
-.logo-sub{font-size:9px;color:#888;letter-spacing:3px;text-transform:uppercase}
-.badge{background:#fdf8ed;border:1px solid #e8d5a0;padding:6px 14px;border-radius:20px;font-size:11px;color:#8B6914;font-weight:600;text-transform:uppercase;letter-spacing:1px}
-.property-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:#111;margin-bottom:4px}
-.property-sub{font-size:13px;color:#666;margin-bottom:24px;display:flex;align-items:center;gap:8px}
-.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
-.metric-card{background:#fcfbfa;border:1px solid #eee;border-radius:8px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.02)}
-.metric-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.metric-value{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#8B6914}
-.highlight-box{background:linear-gradient(135deg,#111,#1f1a10);color:#fff;border-radius:10px;padding:26px;margin-bottom:30px;border-left:4px solid #C9A84C}
-.highlight-box h3{font-family:'Cormorant Garamond',serif;font-size:22px;color:#C9A84C;margin-bottom:10px;font-weight:600}
-.highlight-box p{font-size:13.5px;color:#dcd6cd;line-height:1.7;margin-bottom:12px}
-h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:4px;margin:24px 0 12px}
-.table-financial{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px}
-.table-financial th{background:#f9f7f1;color:#444;text-align:left;padding:10px;border-bottom:1px solid #ddd;font-weight:500}
-.table-financial td{padding:10px;border-bottom:1px solid #eee;color:#333}
-.footer{margin-top:40px;padding-top:15px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
-</style></head><body>
-<div class="page">
-  <div class="header">
-    <div><div class="logo-name">MAGNA</div><div class="logo-sub">Group Real Estate · Investidores</div></div>
-    <div class="badge">Dossier de Oportunidade Exclusiva</div>
-  </div>
+.cover{background:linear-gradient(135deg,#0E0E0F,#1c1c1f);color:#F5EFE3;padding:70px 50px;margin:-50px -50px 40px;text-align:center}
+.cover-logo{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:700;color:#C9A84C;letter-spacing:3px;margin-bottom:6px}
+.cover-sub{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#F5EFE399;margin-bottom:50px}
+.cover-title{font-family:'Cormorant Garamond',serif;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#C9A84C;margin-bottom:10px}
+.cover-h1{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;margin-bottom:16px;line-height:1.2}
+.cover-loc{font-size:14px;color:#F5EFE3CC;margin-bottom:40px}
+.cover-meta{font-size:11px;color:#F5EFE380;letter-spacing:1px}
+h2{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#8B6914;border-bottom:2px solid #C9A84C;padding-bottom:8px;margin:36px 0 18px}
+h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#1a1a1a;margin:20px 0 10px}
+.lead{font-size:14.5px;color:#333;line-height:1.75;margin-bottom:16px}
+.argumentos{display:grid;gap:10px;margin:18px 0}
+.arg{display:flex;gap:12px;padding:12px 16px;background:#f9f7f1;border-left:3px solid #C9A84C;border-radius:4px}
+.arg-num{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#C9A84C;flex-shrink:0}
+.arg-txt{font-size:13px;color:#444;padding-top:2px}
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0}
+.kpi{background:#0E0E0F;color:#F5EFE3;padding:20px 16px;border-radius:6px;text-align:center}
+.kpi-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#C9A84C;margin-bottom:8px}
+.kpi-value{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700}
+.kpi-sub{font-size:10px;color:#F5EFE399;margin-top:4px}
+.table{width:100%;border-collapse:collapse;margin:16px 0}
+.table tr{border-bottom:1px solid #eee}
+.table td{padding:9px 6px;font-size:13px}
+.table td:last-child{text-align:right;font-weight:600;color:#1a1a1a}
+.table tr.total td{border-top:2px solid #C9A84C;font-weight:700;padding-top:12px}
+.table tr.total td:last-child{color:#8B6914}
+.scenario{background:#fafafa;border:1px solid #eee;border-radius:8px;padding:20px;margin-bottom:14px}
+.scenario-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.scenario-name{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#8B6914}
+.scenario-tag{font-size:10px;letter-spacing:1px;text-transform:uppercase;background:#C9A84C22;color:#8B6914;padding:4px 10px;border-radius:12px}
+.scenario-desc{font-size:12.5px;color:#555;margin-bottom:12px}
+.scenario-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sg-item{text-align:center}
+.sg-label{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px}
+.sg-value{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#1a1a1a;margin-top:2px}
+.disclaimer{margin-top:36px;padding:16px 18px;background:#f9f7f1;border-radius:6px;font-size:10.5px;color:#888;line-height:1.6}
+.footer{margin-top:30px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#999;text-align:center}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cover{margin:-50px -50px 40px}}
+</style></head><body><div class="page">
 
-  <div class="property-title">${imovel?.titulo || "Ativo Imobiliário de Rendimento"}</div>
-  <div class="property-sub">📍 <strong>Localização:</strong> ${imovel?.freguesia || imovel?.bairro || "Zona de Elevada Procura"} (${imovel?.concelho || imovel?.distrito || "Portugal"}) · 📐 <strong>Área:</strong> ${areaImovel} m²</div>
+<div class="cover">
+  <div class="cover-logo">MAGNA</div>
+  <div class="cover-sub">Group Real Estate · Investment Advisory</div>
+  <div class="cover-title">Dossier de Investimento</div>
+  <div class="cover-h1">${imovel.titulo}</div>
+  <div class="cover-loc">📍 ${loc}</div>
+  <div class="cover-meta">Preparado em ${hoje} · Confidencial</div>
+</div>
 
-  <!-- Métricas Chave -->
-  <div class="metrics-grid">
-    <div class="metric-card"><div class="metric-label">Preço de Aquisição</div><div class="metric-value">${precoAquisicao.toLocaleString()} €</div></div>
-    <div class="metric-card"><div class="metric-label">Investimento Total</div><div class="metric-value">${investimentoTotal.toLocaleString()} €</div></div>
-    <div class="metric-card"><div class="metric-label">Yield Bruta / Líquida</div><div class="metric-value">${yieldBruta}% / ${yieldLiquida}%</div></div>
-    <div class="metric-card"><div class="metric-label">Ganho Imediato (Equity)</div><div class="metric-value" style="color:#2e7d32">-${percentagemDesconto}% abaixo mercado</div></div>
-  </div>
+<h2>1. Localização e Fundamentos do Investimento</h2>
+<p class="lead">${mercado.narrativa || `${imovel.titulo} está localizado em ${loc}, uma zona com fundamentos sólidos para valorização e procura de arrendamento sustentada.`}</p>
+<div class="argumentos">
+  ${(mercado.argumentos||[]).map((a,i)=>`<div class="arg"><div class="arg-num">${String(i+1).padStart(2,"0")}</div><div class="arg-txt">${a}</div></div>`).join("")}
+</div>
 
-  <!-- A Narrativa de Necessidade e Trunfos do Investidor -->
-  <div class="highlight-box">
-    <h3>Porquê este investimento? O veredicto estratégico</h3>
-    <p><strong>1. Desconto de Aquisição Imediato (Instant Equity):</strong> Este ativo está a ser transacionado a <strong>${precoM2Aquisicao} €/m²</strong>, enquanto a média validada por IA para ativos comparáveis na mesma micro-localização fixa-se nos <strong>${precoM2MercadoEst} €/m²</strong>. Isto assegura uma vantagem concorrencial imediata de <strong>${descontoImediato.toLocaleString()} €</strong> logo à cabeça.</p>
-    <p><strong>2. Localização de Alta Liquidez e Procura:</strong> Situado numa zona com escassez crónica de produto competitivo, o ativo garante forte apetência tanto para o mercado de arrendamento residencial de gama média-alta como para estratégias de revenda rápida com mais-valia.</p>
-    <p><strong>3. Rentabilidade Descomplicada (Chave na Mão):</strong> Com uma Yield Líquida estimada de <strong>${yieldLiquida}%</strong> após todas as provisões de custos fixos, o capital investido protege-se eficazmente contra a inflação, gerando fluxo de caixa estável desde o primeiro dia de exploração.</p>
-  </div>
+<h2>2. Margem de Negócio e Comparativo de Mercado</h2>
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-label">Preço /m² deste imóvel</div><div class="kpi-value">${eur(m.precoM2Imovel)}</div></div>
+  <div class="kpi"><div class="kpi-label">Preço /m² médio na zona</div><div class="kpi-value">${eur(mercado.preco_m2_medio)}</div></div>
+  <div class="kpi" style="background:${m.descontoMercado>0?'#1a4a2e':'#4a1a1a'}"><div class="kpi-label">${m.descontoMercado>0?"Desconto face ao mercado":"Prémio face ao mercado"}</div><div class="kpi-value">${pct(Math.abs(m.descontoMercado))}</div></div>
+</div>
+<p style="font-size:12px;color:#888">${mercado.fonte_precos?`Fonte de referência: ${mercado.fonte_precos}`:""} ${m.descontoMercado>0?`— este imóvel representa um ganho potencial imediato (instant equity) de aproximadamente ${eur(m.descontoMercado/100*mercado.preco_m2_medio*imovel.area)} face ao valor médio de mercado da zona.`:""}</p>
 
-  <h2>Análise Financeira e Estrutura de Custos</h2>
-  <table class="table-financial">
-    <tr><th>Rubrica de Investimento</th><th>Montante Estimado</th><th>Indicadores / Alocação</th></tr>
-    <tr><td><strong>Preço de Aquisição do Ativo</strong></td><td>${precoAquisicao.toLocaleString()} €</td><td>Preço base negociado (${precoM2Aquisicao} €/m²)</td></tr>
-    <tr><td><strong>Previsão de Obras / CapEx</strong></td><td>${custoObras.toLocaleString()} €</td><td>Optimow / Atualização estética e funcional</td></tr>
-    <tr><td><strong>Investimento Global (Aquisição + CapEx)</strong></td><td><strong>${investimentoTotal.toLocaleString()} €</strong></td><td>Exposição financeira total do investidor</td></tr>
-    <tr><td><strong>Rendimento Bruto Anual (Rendas)</strong></td><td>${(rendaMensalEst * 12).toLocaleString()} € / ano</td><td>Estimativa prudente de ${rendaMensalEst.toLocaleString()} €/mês</td></tr>
-    <tr><td><strong>Rendimento Líquido Anual (Pós-Custos)</strong></td><td><strong>${rendaLiquidaAnual.toLocaleString()} € / ano</strong></td><td>Livre de encargos fixos e provisão de vacância</td></tr>
-  </table>
+<h2>3. Análise Financeira Detalhada</h2>
+<h3>Custos de Aquisição</h3>
+<table class="table">
+  <tr><td>Preço de aquisição</td><td>${eur(imovel.valor)}</td></tr>
+  <tr><td>IMT estimado</td><td>${eur(m.imt)}</td></tr>
+  <tr><td>Imposto do Selo (0,8%)</td><td>${eur(m.selo)}</td></tr>
+  <tr><td>Emolumentos / registo (estimativa)</td><td>${eur(m.custosTransacao-m.imt-m.selo)}</td></tr>
+  <tr><td>CapEx — obras/reabilitação (${m.capexM2} €/m²)</td><td>${eur(m.capex)}</td></tr>
+  <tr class="total"><td>Investimento total</td><td>${eur(m.investimentoTotal)}</td></tr>
+</table>
 
-  <h2>Apoio Integral Magna Group</h2>
-  <p style="font-size:13px;color:#555;line-height:1.6;margin-bottom:14px">
-    A Magna Group assegura todo o acompanhamento de <em>due diligence</em> jurídica, fiscal e urbanística, bem como a coordenação de empreiteiros locais e a colocação imediata de inquilinos qualificados através da nossa base de dados exclusiva de investidores e procuradores.
-  </p>
+<h3>Rentabilidade Anual</h3>
+<table class="table">
+  <tr><td>Renda mensal estimada</td><td>${eur(mercado.renda_mensal_sugerida)} /mês</td></tr>
+  <tr><td>Renda anual bruta</td><td>${eur(m.rendaAnual)}</td></tr>
+  <tr><td>IMI estimado</td><td>− ${eur(m.imiAnual)}</td></tr>
+  <tr><td>Condomínio + Seguro</td><td>− ${eur(m.custosFixosAnuais-m.imiAnual-m.vacancia)}</td></tr>
+  <tr><td>Provisão de vacância (5%)</td><td>− ${eur(m.vacancia)}</td></tr>
+  ${m.jurosAnuais>0?`<tr><td>Juros de financiamento</td><td>− ${eur(m.jurosAnuais)}</td></tr>`:""}
+  <tr class="total"><td>Cash-flow líquido anual</td><td>${eur(m.cashFlowLiquido)}</td></tr>
+</table>
 
-  <div class="footer">
-    <div><strong>Magna Group Real Estate</strong><br>Dossier confidencial de investimento analisado por inteligência de mercado.</div>
-    <div style="text-align:right">Emitido em ${hoje}<br><em>Documento de suporte exclusivo a decisores.</em></div>
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-label">Yield Bruta</div><div class="kpi-value">${pct(m.yieldBruta)}</div></div>
+  <div class="kpi"><div class="kpi-label">Yield Líquida</div><div class="kpi-value">${pct(m.yieldLiquida)}</div></div>
+  <div class="kpi"><div class="kpi-label">Cash-on-Cash Return</div><div class="kpi-value">${pct(m.cashOnCash)}</div><div class="kpi-sub">sobre ${eur(m.cashInvestido)} de capital próprio</div></div>
+</div>
+
+<h2>4. Cenários de Saída (Exit Strategy)</h2>
+
+<div class="scenario">
+  <div class="scenario-head"><span class="scenario-name">Cenário A — Arrendamento Longa Duração</span><span class="scenario-tag">Rendimento Estável</span></div>
+  <p class="scenario-desc">Foco em rendimento mensal recorrente e preservação de capital, com inquilino em contrato de longa duração.</p>
+  <div class="scenario-grid">
+    <div class="sg-item"><div class="sg-label">Renda mensal</div><div class="sg-value">${eur(mercado.renda_mensal_sugerida)}</div></div>
+    <div class="sg-item"><div class="sg-label">Yield líquida</div><div class="sg-value">${pct(m.yieldLiquida)}</div></div>
+    <div class="sg-item"><div class="sg-label">Cash-on-Cash</div><div class="sg-value">${pct(m.cashOnCash)}</div></div>
   </div>
 </div>
-<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar Dossier PDF</button>
-</body></html>`);
+
+<div class="scenario">
+  <div class="scenario-head"><span class="scenario-name">Cenário B — Alojamento Local / Médio Prazo</span><span class="scenario-tag">Receita Maximizada</span></div>
+  <p class="scenario-desc">Maximização de receita através de arrendamento sazonal ou corporativo de curta/média duração, sujeito a licenciamento AL e maior gestão operacional.</p>
+  <div class="scenario-grid">
+    <div class="sg-item"><div class="sg-label">Renda mensal estimada*</div><div class="sg-value">${eur(mercado.renda_mensal_sugerida*1.6)}</div></div>
+    <div class="sg-item"><div class="sg-label">Yield bruta estimada*</div><div class="sg-value">${pct(m.yieldBruta*1.4)}</div></div>
+    <div class="sg-item"><div class="sg-label">Ocupação assumida</div><div class="sg-value">~70%</div></div>
+  </div>
+  <p style="font-size:10px;color:#999;margin-top:8px">*Estimativa indicativa — sujeita a licenciamento, sazonalidade e custos de gestão específicos do AL, não incluídos nesta análise.</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-head"><span class="scenario-name">Cenário C — Reabilitação e Revenda (Flip)</span><span class="scenario-tag">Ganho de Capital</span></div>
+  <p class="scenario-desc">Aquisição, reabilitação e revenda após valorização e requalificação, num horizonte de ${m.meses} meses.</p>
+  <div class="scenario-grid">
+    <div class="sg-item"><div class="sg-label">Valor pós-obras</div><div class="sg-value">${eur(m.valorPosObras)}</div></div>
+    <div class="sg-item"><div class="sg-label">Valor projectado revenda</div><div class="sg-value">${eur(m.valorProjectado)}</div></div>
+    <div class="sg-item"><div class="sg-label">Mais-valia estimada</div><div class="sg-value">${eur(m.maisValia)}</div></div>
+  </div>
+  <p style="font-size:10px;color:#999;margin-top:8px">Assume valorização anual de ${pct(mercado.valorizacao_anual_pct)} na zona. Não inclui tributação de mais-valias (IRS/IRC) nem custos de revenda (comissão, IMT do comprador seguinte não aplicável ao vendedor).</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-head"><span class="scenario-name">Cenário D — Compra e Revenda sem Obras</span><span class="scenario-tag">Instant Equity</span></div>
+  <p class="scenario-desc">Aquisição ao valor de mercado (ou abaixo) e revenda rápida, sem qualquer intervenção de reabilitação, capturando o desconto de aquisição num horizonte curto de ${m.mesesRevendaRapida} meses.</p>
+  <div class="scenario-grid">
+    <div class="sg-item"><div class="sg-label">Investimento total</div><div class="sg-value">${eur(m.investimentoSemObras)}</div></div>
+    <div class="sg-item"><div class="sg-label">Valor projectado revenda</div><div class="sg-value">${eur(m.valorRevendaRapida)}</div></div>
+    <div class="sg-item"><div class="sg-label">Ganho estimado</div><div class="sg-value">${eur(m.ganhoRevendaRapida)}</div></div>
+  </div>
+  <p style="font-size:10px;color:#999;margin-top:8px">Não inclui tributação de mais-valias (IRS/IRC) nem custos de revenda (comissão, registo). Cenário mais conservador em prazo, mas sem exposição a obras.</p>
+</div>
+
+<div class="disclaimer">
+  <strong>Nota importante:</strong> Este dossier apresenta estimativas construídas a partir de dados de mercado e pressupostos indicados, com o apoio de pesquisa assistida por inteligência artificial. Os valores de IMT, rendas, valorização e custos são aproximações para fins de análise preliminar e não constituem aconselhamento financeiro, fiscal ou de investimento. Antes de qualquer decisão, recomenda-se a confirmação dos valores fiscais junto do Portal das Finanças e a consulta a um contabilista, advogado ou consultor financeiro certificado.
+</div>
+
+<div class="footer">
+  Magna Group Real Estate · Dossier preparado por ${agente?agente.nome:"—"} · ${hoje} · Documento confidencial, uso exclusivo do destinatário.
+</div>
+</div><script>window.print();window.onafterprint=()=>window.close();</script></body></html>`;
+};
+
+const gerarPDFDossierInvestidor = (imovel, mercado, m, agente) => {
+  const win = window.open("","_blank");
+  win.document.write(htmlDossierInvestidor(imovel, mercado, m, agente));
   win.document.close();
 };
+
+// ── Modal: Dossier de Investimento ──
+const GerarDossierInvestidor = ({ imovel, user, onClose }) => {
+  const [fase, setFase] = useState("form"); // form | pesquisando | pronto
+  const [erro, setErro] = useState(null);
+  const [mercado, setMercado] = useState(null);
+  const [narrativa, setNarrativa] = useState("");
+  const [input, setInput] = useState({
+    precoAquisicao: imovel.valor || 0,
+    area: imovel.area || 0,
+    estadoImovel: "Bom estado / Cosmético",
+    tipoIMT: "nhpp",
+    emolumentos: 900,
+    imiPercent: 0.4,
+    condominioMensal: 0,
+    seguroAnual: 150,
+    vacanciaPercent: 5,
+    capitalPropriPercent: 100,
+    taxaJuro: 4,
+    prazoFlipMeses: 12,
+  });
+
+  const pesquisar = async () => {
+    setFase("pesquisando"); setErro(null);
+    try {
+      const dados = await pesquisarMercadoInvestidor(imovel);
+      setMercado(dados);
+      setNarrativa(`Localizado em ${[imovel.freguesia,imovel.concelho].filter(Boolean).join(", ")}, este imóvel insere-se numa zona com procura consolidada e fundamentos claros de valorização.`);
+      setFase("pronto");
+    } catch (e) {
+      setErro("Não foi possível pesquisar dados de mercado automaticamente. Podes preencher os valores manualmente abaixo.");
+      setMercado({ preco_m2_medio: 0, renda_mensal_sugerida: 0, valorizacao_anual_pct: 3, argumentos: [], fonte_precos: "" });
+      setFase("pronto");
+    }
+  };
+
+  const gerar = () => {
+    const m = calcMetricasInvestimento(input);
+    gerarPDFDossierInvestidor(imovel, { ...mercado, narrativa }, m, user);
+  };
+
+  return (
+    <Modal title="Dossier de Investimento" onClose={onClose}>
+      <p style={{fontSize:12,color:G.textDim,marginBottom:16}}>{imovel.titulo} · {[imovel.freguesia,imovel.concelho].filter(Boolean).join(", ")}</p>
+
+      {fase === "form" && (
+        <>
+          <p style={{fontSize:13,color:G.textMuted,marginBottom:16}}>Pesquisamos dados de mercado da zona (preço/m², renda de referência, valorização) e geramos um dossier completo com margem de negócio, rentabilidade e cenários de saída.</p>
+          <button className="btn-gold" onClick={pesquisar} style={{width:"100%"}}>✦ Pesquisar dados de mercado (IA)</button>
+          <button className="btn-ghost" onClick={()=>{setMercado({preco_m2_medio:0,renda_mensal_sugerida:0,valorizacao_anual_pct:3,argumentos:[],fonte_precos:""});setNarrativa("");setFase("pronto");}} style={{width:"100%",marginTop:10}}>Preencher manualmente, sem pesquisa</button>
+        </>
+      )}
+
+      {fase === "pesquisando" && (
+        <div style={{textAlign:"center",padding:"30px 0"}}>
+          <p style={{fontSize:13,color:G.gold1}}>✦ A pesquisar dados de mercado da zona...</p>
+        </div>
+      )}
+
+      {fase === "pronto" && (
+        <>
+          {erro && <div style={{background:`${G.red}10`,border:`1px solid ${G.red}40`,borderRadius:8,padding:"10px 14px",marginBottom:14}}><p style={{fontSize:12,color:G.red}}>{erro}</p></div>}
+
+          <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:10}}>Dados de Mercado</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <Field label="Preço médio /m² na zona (€)"><input type="number" value={mercado.preco_m2_medio} onChange={e=>setMercado(p=>({...p,preco_m2_medio:Number(e.target.value)}))}/></Field>
+            <Field label="Renda mensal sugerida (€)"><input type="number" value={mercado.renda_mensal_sugerida} onChange={e=>setMercado(p=>({...p,renda_mensal_sugerida:Number(e.target.value)}))}/></Field>
+            <Field label="Valorização anual estimada (%)"><input type="number" step="0.1" value={mercado.valorizacao_anual_pct} onChange={e=>setMercado(p=>({...p,valorizacao_anual_pct:Number(e.target.value)}))}/></Field>
+            <Field label="Fonte dos preços"><input value={mercado.fonte_precos} onChange={e=>setMercado(p=>({...p,fonte_precos:e.target.value}))} placeholder="Ex: Idealista, INE..."/></Field>
+          </div>
+          {mercado.argumentos && mercado.argumentos.length > 0 && (
+            <div style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:8,padding:"10px 14px",marginBottom:16}}>
+              <p style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:G.gold1,marginBottom:6}}>Argumentos da localização (editáveis no PDF final)</p>
+              {mercado.argumentos.map((a,i)=><p key={i} style={{fontSize:12,color:G.textMuted,marginBottom:3}}>• {a}</p>)}
+            </div>
+          )}
+
+          <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:10}}>Aquisição</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <Field label="Preço de aquisição (€)"><input type="number" value={input.precoAquisicao} onChange={e=>setInput(p=>({...p,precoAquisicao:Number(e.target.value)}))}/></Field>
+            <Field label="Área (m²)"><input type="number" value={input.area} onChange={e=>setInput(p=>({...p,area:Number(e.target.value)}))}/></Field>
+            <Field label="Estado do imóvel">
+              <select value={input.estadoImovel} onChange={e=>setInput(p=>({...p,estadoImovel:e.target.value}))}>
+                {Object.keys(CAPEX_M2).map(k=><option key={k}>{k}</option>)}
+              </select>
+            </Field>
+            <Field label="Tipo de IMT">
+              <select value={input.tipoIMT} onChange={e=>setInput(p=>({...p,tipoIMT:e.target.value}))}>
+                <option value="nhpp">Não-HPP (investimento) — aproximado</option>
+                <option value="hpp">Habitação Própria Permanente</option>
+              </select>
+            </Field>
+            <Field label="Emolumentos/registo (€)"><input type="number" value={input.emolumentos} onChange={e=>setInput(p=>({...p,emolumentos:Number(e.target.value)}))}/></Field>
+          </div>
+
+          <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:10}}>Custos Fixos e Financiamento</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <Field label="IMI estimado (% do valor)"><input type="number" step="0.05" value={input.imiPercent} onChange={e=>setInput(p=>({...p,imiPercent:Number(e.target.value)}))}/></Field>
+            <Field label="Condomínio mensal (€)"><input type="number" value={input.condominioMensal} onChange={e=>setInput(p=>({...p,condominioMensal:Number(e.target.value)}))}/></Field>
+            <Field label="Seguro anual (€)"><input type="number" value={input.seguroAnual} onChange={e=>setInput(p=>({...p,seguroAnual:Number(e.target.value)}))}/></Field>
+            <Field label="Vacância (%)"><input type="number" value={input.vacanciaPercent} onChange={e=>setInput(p=>({...p,vacanciaPercent:Number(e.target.value)}))}/></Field>
+            <Field label="Capital próprio (%)"><input type="number" value={input.capitalPropriPercent} onChange={e=>setInput(p=>({...p,capitalPropriPercent:Number(e.target.value)}))}/></Field>
+            {input.capitalPropriPercent < 100 && <Field label="Taxa de juro do financiamento (%)"><input type="number" step="0.1" value={input.taxaJuro} onChange={e=>setInput(p=>({...p,taxaJuro:Number(e.target.value)}))}/></Field>}
+            <Field label="Prazo do cenário flip (meses)"><input type="number" value={input.prazoFlipMeses} onChange={e=>setInput(p=>({...p,prazoFlipMeses:Number(e.target.value)}))}/></Field>
+          </div>
+
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+            <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn-gold" onClick={gerar}>Gerar Dossier PDF</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+};
+
+
 // ── APP ROOT ──────────────────────────────────────────────────
 export default function App() {
   const [user,setUser]         = useState(null);
