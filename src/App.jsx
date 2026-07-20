@@ -3238,7 +3238,7 @@ const parseJSON = (text) => {
 };
 
 // ── Market Modal ──────────────────────────────────────────────
-const MarketModal = ({imovel,onClose,onPDF}) => {
+const MarketModal = ({imovel,onClose,onPDF,onSaved}) => {
   const [loading,setLoad]  = useState(false);
   const [step,setStep]     = useState("");
   const [result,setResult] = useState(null);
@@ -3270,6 +3270,8 @@ Usa web_search para pesquisar preços reais de imóveis similares. Faz estas pes
 2. "Idealista Imovirtual ${imovel.tipo} ${zona} metro quadrado preço"
 3. "mercado imobiliário ${zona} valorização 2025"
 
+Pesquisa também o valor médio de renda mensal para um imóvel semelhante nesta zona (arrendamento), mesmo que a finalidade deste imóvel seja venda — é usado para análise de investimento.
+
 Devolve EXATAMENTE este JSON (todos os valores em euros):
 {
   "valorMinimo": <número>,
@@ -3281,6 +3283,7 @@ Devolve EXATAMENTE este JSON (todos os valores em euros):
   "percentualVariacao": <número>,
   "avaliacao": "Abaixo do mercado" | "Dentro do mercado" | "Acima do mercado",
   "diferencaPercent": <número positivo se acima do sugerido>,
+  "rendaMensalEstimada": <número, valor médio de arrendamento mensal para imóvel semelhante na zona>,
   "pontosFavoraveis": ["ponto1","ponto2","ponto3"],
   "pontosAtencao": ["ponto1","ponto2"],
   "recomendacao": "<2-3 frases com estratégia de preço em português de Portugal>",
@@ -3293,6 +3296,11 @@ Devolve EXATAMENTE este JSON (todos os valores em euros):
       const json = parseJSON(raw);
       if (!json || !json.valorMedio) throw new Error("A IA não devolveu dados suficientes. Tenta novamente ou verifica se o bairro/cidade estão corretos.");
       setResult(json);
+      // Guardar a avaliação no imóvel para reutilizar no Dossier Investidor
+      if (dbReady && imovel.id) {
+        try { await dbImoveis.update(imovel.id, { avaliacaoIA: json }); onSaved && onSaved(json); }
+        catch (e) { console.error("guardar avaliacaoIA:", e); }
+      }
     } catch(e) { setError(e.message||"Erro na análise. Tente novamente."); }
     finally { setLoad(false); setStep(""); }
   };
@@ -5563,7 +5571,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
         </Modal>
       )}
 
-      {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
+      {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
       {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
       {visitaIm&&<RegistarVisita imovel={visitaIm} clientes={clientes} user={user} onClose={()=>setVisitaIm(null)} mob={mob}/>}
@@ -7096,10 +7104,18 @@ const gerarPDFDossierInvestidor = (imovel, mercado, m, agente) => {
 
 // ── Modal: Dossier de Investimento ──
 const GerarDossierInvestidor = ({ imovel, user, onClose }) => {
-  const [fase, setFase] = useState("form"); // form | pesquisando | pronto
+  const avaliacaoExistente = imovel.avaliacaoIA;
+  const [fase, setFase] = useState(avaliacaoExistente ? "pronto" : "form"); // form | pesquisando | pronto
   const [erro, setErro] = useState(null);
-  const [mercado, setMercado] = useState(null);
-  const [narrativa, setNarrativa] = useState("");
+  const [mercado, setMercado] = useState(avaliacaoExistente ? {
+    preco_m2_medio: avaliacaoExistente.precoPorM2 || 0,
+    renda_mensal_sugerida: avaliacaoExistente.rendaMensalEstimada || 0,
+    valorizacao_anual_pct: avaliacaoExistente.percentualVariacao || 3,
+    argumentos: avaliacaoExistente.pontosFavoraveis || [],
+    fonte_precos: (avaliacaoExistente.fontesConsultadas || []).join(", "),
+  } : null);
+  const [narrativa, setNarrativa] = useState(avaliacaoExistente ? (avaliacaoExistente.recomendacao || "") : "");
+  const [usandoExistente, setUsandoExistente] = useState(!!avaliacaoExistente);
   const [input, setInput] = useState({
     precoAquisicao: imovel.valor || 0,
     area: imovel.area || 0,
@@ -7155,6 +7171,13 @@ const GerarDossierInvestidor = ({ imovel, user, onClose }) => {
       {fase === "pronto" && (
         <>
           {erro && <div style={{background:`${G.red}10`,border:`1px solid ${G.red}40`,borderRadius:8,padding:"10px 14px",marginBottom:14}}><p style={{fontSize:12,color:G.red}}>{erro}</p></div>}
+
+          {usandoExistente && (
+            <div style={{background:`${G.gold1}0A`,border:`1px solid ${G.gold1}30`,borderRadius:8,padding:"10px 14px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <p style={{fontSize:12,color:G.gold1}}>✦ A usar a avaliação de mercado de {avaliacaoExistente.dataAnalise || "análise anterior"}</p>
+              <button className="btn-ghost" style={{padding:"6px 12px",fontSize:11}} onClick={()=>{setUsandoExistente(false);setFase("pesquisando");pesquisar();}}>Actualizar pesquisa</button>
+            </div>
+          )}
 
           <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1,marginBottom:10}}>Dados de Mercado</h3>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
