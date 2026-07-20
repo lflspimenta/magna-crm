@@ -1,4 +1,4 @@
-// src/db.js — Versão com comissao_fixa
+// src/db.js — Versão atualizada com Magna Lifecycle e Segmentação de Clientes
 import { createClient } from '@supabase/supabase-js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
@@ -11,10 +11,9 @@ const fromDB = (row, mapping) => { if (!row) return null; const out = { ...row }
 const onlyFields = (obj, allowed) => { const out = {}; for (const f of allowed) if (f in obj) out[f] = obj[f]; return out; };
 const toDB = (obj, mapping, allowed) => { const out = { ...obj }; for (const [appKey, dbKey] of Object.entries(mapping || {})) { if (appKey in out) { out[dbKey] = out[appKey]; if (appKey !== dbKey) delete out[appKey]; } } return onlyFields(out, allowed); };
 
-const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque','publicado','proprietario_id'];
-// Campo comissao_fixa adicionado aqui:
+const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque','publicado','proprietario_id', 'tipo_ativo', 'servico_gestao_arrendamento', 'servico_alojamento_local', 'servico_property_caretaker', 'servico_requalificacao', 'tem_projeto_aprovado', 'viabilidade_construtiva_pip', 'infraestruturas_basicas', 'topografia'];
 const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','comissao_fixa','prazo','data_inicio','estado','sig_prop','sig_agente','proprietario_id'];
-const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','tipologia','obs'];
+const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','tipologia','obs', 'perfil_cliente', 'requisitos_especificos'];
 const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas'];
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
@@ -24,9 +23,9 @@ const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','sit
 const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado','atribuido_a'];
 const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado','atribuido_a'];
 
-const M_IMOVEIS = { casasBanho: 'casas_banho' };
-// Mapeamento para comissaoFixa:
+const M_IMOVEIS = { casasBanho: 'casas_banho', tipoAtivo: 'tipo_ativo', servicoGestaoArrendamento: 'servico_gestao_arrendamento', servicoAlojamentoLocal: 'servico_alojamento_local', servicoPropertyCaretaker: 'servico_property_caretaker', servicoRequalificacao: 'servico_requalificacao', temProjetoAprovado: 'tem_projeto_aprovado', viabilidadeConstrutivaPip: 'viabilidade_construtiva_pip', infraestruturasBasicas: 'infraestruturas_basicas' };
 const M_ANG = { propNome: 'prop_nome', propNif: 'prop_nif', propEmail: 'prop_email', propTelefone: 'prop_telefone', propMorada: 'prop_morada', casasBanho: 'casas_banho', tipoMandato: 'tipo_mandato', comissaoFixa: 'comissao_fixa', dataInicio: 'data_inicio', sigProp: 'sig_prop', sigAgente: 'sig_agente' };
+const M_CLIENTES = { perfilCliente: 'perfil_cliente', requisitosEspecificos: 'requisitos_especificos' };
 const M_VISITAS = { imovelId: 'imovel_id', imovelTitulo: 'imovel_titulo', clienteNome: 'cliente_nome', clienteNif: 'cliente_nif', clienteContacto: 'cliente_contacto', agenteNome: 'agente_nome', sigCliente: 'sig_cliente', sigAgente: 'sig_agente' };
 const M_DOCS = { proprietarioId: 'proprietario_id', imovelId: 'imovel_id', nomeFicheiro: 'nome_ficheiro', dadosExtraidos: 'dados_extraidos' };
 
@@ -42,7 +41,7 @@ function makeCRUD(table, mapping, allowed, opts = {}) {
 }
 
 export const dbImoveis = makeCRUD('imoveis', M_IMOVEIS, F_IMOVEIS);
-export const dbClientes = makeCRUD('clientes', {}, F_CLIENTES);
+export const dbClientes = makeCRUD('clientes', M_CLIENTES, F_CLIENTES);
 export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
 export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
 export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);

@@ -4809,8 +4809,10 @@ const initT = [
   {id:3,titulo:"Enviar contrato Maria",cliente:"Maria Santos",data:"2026-05-23",hora:"09:00",tipo:"Documento",prioridade:"Média",concluida:false},
 ];
 
-// ── IMÓVEIS ───────────────────────────────────────────────────
-const emptyIm={titulo:"",tipo:"Apartamento",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:"",fotos:[],destaque:false};
+// ── IMÓVEIS E CLIENTES (Estados Iniciais) ──────────────────────
+const emptyIm={titulo:"",tipo:"Apartamento",tipoAtivo:"habitacao",finalidade:"Venda",status:"Disponível",valor:"",area:"",quartos:"",bairro:"",distrito:"",concelho:"",cidade:"",freguesia:"",foto:"🏠",descricao:"",fotos:[],destaque:false, publicado:false, proprietario_id:null, servicoGestaoArrendamento:false, servicoAlojamentoLocal:false, servicoPropertyCaretaker:false, servicoRequalificacao:false, temProjetoAprovado:false, viabilidadeConstrutivaPip:"", infraestruturasBasicas:[], topografia:""};
+
+const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:"", perfilCliente:"comprador_tradicional", requisitosEspecificos:{}};
 
 // ── Import from Idealista / Imovirtual ────────────────────────
 const ImportModal = ({onClose, onImport}) => {
@@ -5344,10 +5346,8 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.titulo)return;const d={...form,status:(form.status||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""),valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
   const onImport=(data)=>{setImoveis(p=>[...p,{...data,id:Date.now(),valor:Number(data.valor),area:Number(data.area),quartos:Number(data.quartos)||0}]);setImportMod(false);};
-  // Eliminar imóvel + fotos do Storage
   const eliminar=async(im)=>{
     if(!confirm("Eliminar este imóvel? As fotos também serão apagadas."))return;
-    // Apagar fotos do Storage (só URLs da Supabase, ignora base64 antigos)
     const fotosStorage=(im.fotos||[]).filter(f=>typeof f==="string"&&f.startsWith("http"));
     if(fotosStorage.length>0&&dbReady){try{await deleteFotos(fotosStorage);}catch(e){console.warn("erro a apagar fotos:",e);}}
     setImoveis(p=>p.filter(i=>i.id!==im.id));
@@ -5369,7 +5369,6 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
       </div>
       <div style={{position:"relative",marginBottom:16}}><span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}><Ic n="search2" s={15} c={G.textDim}/></span><input placeholder="Pesquisar..." value={search} onChange={e=>setSrch(e.target.value)} style={{paddingLeft:36}}/></div>
 
-      {/* Desktop table */}
       {!mob&&<>
         <div className="table-row table-header-mob" style={{gridTemplateColumns:"2fr 1fr 1fr 1fr 1.2fr 110px",color:G.textDim,fontSize:11,letterSpacing:".5px",textTransform:"uppercase",cursor:"default"}}>
           <span>Imóvel</span><span>Tipo</span><span>Finalidade</span><span>Estado</span><span>Valor</span><span>Ações</span>
@@ -5396,7 +5395,6 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
         ))}
       </>}
 
-      {/* Mobile cards */}
       {mob&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
         {filtered.map(im=>(
           <div key={im.id} className="card imovel-card" style={{padding:"14px"}}>
@@ -5423,85 +5421,137 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
           </div>
         ))}
       </div>}
-{modal && (
-  <Modal title={editId ? "Editar Imóvel" : "Novo Imóvel"} onClose={() => setMod(false)}>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <div style={{ gridColumn: "1/-1" }}><Field label="Título"><input value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Apartamento T3 Chiado" /></Field></div>
-      <Field label="Ícone"><select value={form.foto} onChange={e => setForm(p => ({ ...p, foto: e.target.value }))}>{fotos.map(f => <option key={f} value={f}>{f}</option>)}</select></Field>
-      <Field label="Tipo"><select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>{["Apartamento", "Moradia", "Terreno", "Comercial", "Escritório"].map(t => <option key={t}>{t}</option>)}</select></Field>
-      <Field label="Finalidade"><select value={form.finalidade} onChange={e => setForm(p => ({ ...p, finalidade: e.target.value }))}><option>Venda</option><option>Arrendamento</option></select></Field>
-      <Field label="Estado"><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option>Disponível</option><option>Reservado</option><option>Vendido</option><option>Arrendado</option></select></Field>
-      <Field label="Valor (€)"><input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" /></Field>
-      <Field label="Área (m²)"><input type="number" value={form.area} onChange={e => setForm(p => ({ ...p, area: e.target.value }))} placeholder="0" /></Field>
-      <Field label="Quartos"><input type="number" value={form.quartos} onChange={e => setForm(p => ({ ...p, quartos: e.target.value }))} placeholder="0" /></Field>
-      
-      {/* SEÇÃO DOS INTERRUPTORES: DESTAQUE + PUBLICADO */}
-      <div style={{ gridColumn: "1/-1", display: "flex", gap: "10px", marginTop: "10px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.destaque ? `${G.gold1}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.destaque ? G.gold1 : G.border}`, transition: "all .2s", flex: 1 }}>
-          <div onClick={() => setForm(p => ({ ...p, destaque: !p.destaque }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.destaque ? G.gold1 : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
-            <div style={{ position: "absolute", top: 2, left: form.destaque ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
-          </div>
-          <div><p style={{ fontSize: 13, fontWeight: 500, color: form.destaque ? G.gold1 : G.text }}>Destaque</p></div>
-        </label>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.publicado ? `${G.green}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.publicado ? G.green : G.border}`, transition: "all .2s", flex: 1 }}>
-          <div onClick={() => setForm(p => ({ ...p, publicado: !p.publicado }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.publicado ? G.green : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
-            <div style={{ position: "absolute", top: 2, left: form.publicado ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
-          </div>
-          <div><p style={{ fontSize: 13, fontWeight: 500, color: form.publicado ? G.green : G.text }}>Publicado</p></div>
-        </label>
-      </div>
+      {modal && (
+        <Modal title={editId ? "Editar Imóvel" : "Novo Imóvel"} onClose={() => setMod(false)}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1/-1" }}><Field label="Título"><input value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Apartamento T3 Chiado" /></Field></div>
+            
+            <Field label="Tipo de Ativo (Macro)">
+              <select value={form.tipoAtivo || "habitacao"} onChange={e => setForm(p => ({ ...p, tipoAtivo: e.target.value }))}>
+                <option value="habitacao">Habitação</option>
+                <option value="terreno">Terreno</option>
+                <option value="predio_bloco">Prédio / Bloco</option>
+                <option value="comercial">Espaço Comercial</option>
+              </select>
+            </Field>
 
-      <div style={{ gridColumn: "1/-1" }}>
-        <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Fotografias</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-          {(form.fotos || []).map((src, idx) => (
-            <div key={idx} style={{ position: "relative", width: 80, height: 80 }}>
-              <img src={src} alt="" style={{ width: 80, height: 80, borderRadius: 8, objectFit: "cover" }} />
-              <button onClick={async () => {
-                if (dbReady && typeof src === "string" && src.startsWith("http")) { try { await deleteFoto(src); } catch (e) { console.warn("delete foto:", e); } }
-                setForm(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx) }));
-              }} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: G.red, border: "2px solid " + G.surface1, color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
+            <Field label="Tipologia Específica"><select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>{["Apartamento", "Moradia", "Terreno", "Comercial", "Escritório", "Lote"].map(t => <option key={t}>{t}</option>)}</select></Field>
+            
+            {form.tipoAtivo === 'terreno' && (
+              <div style={{ gridColumn: "1/-1", background: G.surface2, padding: "14px 16px", borderRadius: 8, marginBottom: 8, border: `1px solid ${G.border}` }}>
+                <p style={{ fontSize: 12, color: G.gold1, marginBottom: 12, textTransform: "uppercase", letterSpacing: ".3px", fontWeight: 500 }}>Especificações do Terreno</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field label="Tem projeto aprovado?">
+                    <select value={form.temProjetoAprovado ? "sim" : "nao"} onChange={e => setForm(p => ({ ...p, temProjetoAprovado: e.target.value === "sim" }))}>
+                      <option value="nao">Não</option><option value="sim">Sim</option>
+                    </select>
+                  </Field>
+                  <Field label="Topografia">
+                    <select value={form.topografia || ""} onChange={e => setForm(p => ({ ...p, topografia: e.target.value }))}>
+                      <option value="">Desconhecida</option><option value="Plano">Plano</option><option value="Inclinado">Inclinado</option><option value="Socalcos">Socalcos</option>
+                    </select>
+                  </Field>
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <Field label="Viabilidade Construtiva / PIP">
+                      <input value={form.viabilidadeConstrutivaPip || ""} onChange={e => setForm(p => ({ ...p, viabilidadeConstrutivaPip: e.target.value }))} placeholder="Ex: Construção aprovada até 2 pisos, 400m2 implantação" />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Field label="Finalidade"><select value={form.finalidade} onChange={e => setForm(p => ({ ...p, finalidade: e.target.value }))}><option>Venda</option><option>Arrendamento</option></select></Field>
+            <Field label="Estado"><select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}><option>Disponível</option><option>Reservado</option><option>Vendido</option><option>Arrendado</option></select></Field>
+            <Field label="Valor (€)"><input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" /></Field>
+            <Field label="Área (m²)"><input type="number" value={form.area} onChange={e => setForm(p => ({ ...p, area: e.target.value }))} placeholder="0" /></Field>
+            <Field label="Quartos"><input type="number" value={form.quartos} onChange={e => setForm(p => ({ ...p, quartos: e.target.value }))} placeholder="0" /></Field>
+            <Field label="Ícone"><select value={form.foto} onChange={e => setForm(p => ({ ...p, foto: e.target.value }))}>{fotos.map(f => <option key={f} value={f}>{f}</option>)}</select></Field>
+
+            <div style={{ gridColumn: "1/-1", marginTop: 10, padding: 14, border: `1px solid ${G.border}`, borderRadius: 8, background: G.surface }}>
+              <p style={{ fontSize: 12, color: G.gold1, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px", fontWeight: 500 }}>Serviços Magna Ativos</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { key: "servicoGestaoArrendamento", label: "Gestão de Arrendamento" },
+                  { key: "servicoAlojamentoLocal", label: "Alojamento Local (AL)" },
+                  { key: "servicoPropertyCaretaker", label: "Property Caretaker" },
+                  { key: "servicoRequalificacao", label: "Requalificação / Obras" }
+                ].map(srv => (
+                  <label key={srv.key} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", background: form[srv.key] ? `${G.purple}15` : G.surface2, borderRadius: 6, border: `1px solid ${form[srv.key] ? G.purple : G.border}` }}>
+                    <input type="checkbox" checked={form[srv.key] || false} onChange={e => setForm(p => ({ ...p, [srv.key]: e.target.checked }))} style={{ width: "auto" }} />
+                    <span style={{ fontSize: 13, color: form[srv.key] ? G.purple : G.text }}>{srv.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          ))}
-          <label style={{ width: 80, height: 80, borderRadius: 8, border: `2px dashed ${G.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: uploading ? "wait" : "pointer", color: G.textMuted, gap: 4, opacity: uploading ? .5 : 1 }}>
-            {uploading ? <div className="spinner" style={{ width: 18, height: 18, border: `2px solid ${G.textDim}`, borderTopColor: G.gold1, borderRadius: "50%", animation: "spin .8s linear infinite" }} /> : <><Ic n="plus" s={18} c={G.textMuted} /><span style={{ fontSize: 10 }}>Adicionar</span></>}
-            <input type="file" accept="image/*" multiple disabled={uploading} style={{ display: "none" }} onChange={async e => {
-              const files = Array.from(e.target.files || []);
-              if (files.length === 0) return;
-              e.target.value = "";
-              if (!dbReady) {
-                files.forEach(file => {
-                  if (file.size > 3 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`); return; }
-                  const reader = new FileReader();
-                  reader.onload = ev => setForm(p => ({ ...p, fotos: [...(p.fotos || []), ev.target.result] }));
-                  reader.readAsDataURL(file);
-                });
-                return;
-              }
-              setUploading(true);
-              for (const file of files) {
-                if (file.size > 5 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 5MB).`); continue; }
-                try {
-                  const url = await uploadFoto(file);
-                  setForm(p => ({ ...p, fotos: [...(p.fotos || []), url] }));
-                } catch (err) { console.error("upload erro:", err); alert(`Erro ao carregar "${file.name}": ${err.message}`); }
-              }
-              setUploading(false);
-            }} />
-          </label>
-        </div>
-      </div>
-      <div style={{ gridColumn: "1/-1" }}>
-        <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Localização</p>
-        <LocSelector distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia} onChange={({ distrito, concelho, freguesia }) => setForm(p => ({ ...p, distrito, concelho, cidade: concelho, bairro: freguesia || concelho, freguesia }))} />
-        <Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e => setForm(p => ({ ...p, bairro: e.target.value }))} placeholder="Ex: Chiado, Beira Mar..." /></Field>
-      </div>
-      <div style={{ gridColumn: "1/-1" }}><Field label="Descrição"><textarea value={form.descricao || ""} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição do imóvel..." rows={3} style={{ resize: "vertical" }} /></Field></div>
-    </div>
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}><button className="btn-ghost" onClick={() => setMod(false)}>Cancelar</button><button className="btn-gold" onClick={save}>{editId ? "Guardar" : "Cadastrar"}</button></div>
-  </Modal>
-)}
+
+            <div style={{ gridColumn: "1/-1", display: "flex", gap: "10px", marginTop: "10px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.destaque ? `${G.gold1}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.destaque ? G.gold1 : G.border}`, transition: "all .2s", flex: 1 }}>
+                <div onClick={() => setForm(p => ({ ...p, destaque: !p.destaque }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.destaque ? G.gold1 : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 2, left: form.destaque ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
+                </div>
+                <div><p style={{ fontSize: 13, fontWeight: 500, color: form.destaque ? G.gold1 : G.text }}>Destaque</p></div>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "12px 14px", background: form.publicado ? `${G.green}15` : G.surface2, borderRadius: 8, border: `1px solid ${form.publicado ? G.green : G.border}`, transition: "all .2s", flex: 1 }}>
+                <div onClick={() => setForm(p => ({ ...p, publicado: !p.publicado }))} style={{ width: 44, height: 24, borderRadius: 12, background: form.publicado ? G.green : G.border, position: "relative", transition: "background .2s", cursor: "pointer", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 2, left: form.publicado ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }} />
+                </div>
+                <div><p style={{ fontSize: 13, fontWeight: 500, color: form.publicado ? G.green : G.text }}>Publicado</p></div>
+              </label>
+            </div>
+
+            <div style={{ gridColumn: "1/-1" }}>
+              <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Fotografias</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                {(form.fotos || []).map((src, idx) => (
+                  <div key={idx} style={{ position: "relative", width: 80, height: 80 }}>
+                    <img src={src} alt="" style={{ width: 80, height: 80, borderRadius: 8, objectFit: "cover" }} />
+                    <button onClick={async () => {
+                      if (dbReady && typeof src === "string" && src.startsWith("http")) { try { await deleteFoto(src); } catch (e) { console.warn("delete foto:", e); } }
+                      setForm(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx) }));
+                    }} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: G.red, border: "2px solid " + G.surface, color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+                <label style={{ width: 80, height: 80, borderRadius: 8, border: `2px dashed ${G.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: uploading ? "wait" : "pointer", color: G.textMuted, gap: 4, opacity: uploading ? .5 : 1 }}>
+                  {uploading ? <div className="spinner" style={{ width: 18, height: 18, border: `2px solid ${G.textDim}`, borderTopColor: G.gold1, borderRadius: "50%", animation: "spin .8s linear infinite" }} /> : <><Ic n="plus" s={18} c={G.textMuted} /><span style={{ fontSize: 10 }}>Adicionar</span></>}
+                  <input type="file" accept="image/*" multiple disabled={uploading} style={{ display: "none" }} onChange={async e => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    e.target.value = "";
+                    if (!dbReady) {
+                      files.forEach(file => {
+                        if (file.size > 3 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 3MB).`); return; }
+                        const reader = new FileReader();
+                        reader.onload = ev => setForm(p => ({ ...p, fotos: [...(p.fotos || []), ev.target.result] }));
+                        reader.readAsDataURL(file);
+                      });
+                      return;
+                    }
+                    setUploading(true);
+                    for (const file of files) {
+                      if (file.size > 5 * 1024 * 1024) { alert(`A foto "${file.name}" é demasiado grande (máx 5MB).`); continue; }
+                      try {
+                        const url = await uploadFoto(file);
+                        setForm(p => ({ ...p, fotos: [...(p.fotos || []), url] }));
+                      } catch (err) { console.error("upload erro:", err); alert(`Erro ao carregar "${file.name}": ${err.message}`); }
+                    }
+                    setUploading(false);
+                  }} />
+                </label>
+              </div>
+            </div>
+            <div style={{ gridColumn: "1/-1" }}>
+              <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: ".3px" }}>Localização</p>
+              <LocSelector distrito={form.distrito} concelho={form.concelho} freguesia={form.freguesia} onChange={({ distrito, concelho, freguesia }) => setForm(p => ({ ...p, distrito, concelho, cidade: concelho, bairro: freguesia || concelho, freguesia }))} />
+              <Field label="Zona / Bairro (opcional)"><input value={form.bairro} onChange={e => setForm(p => ({ ...p, bairro: e.target.value }))} placeholder="Ex: Chiado, Beira Mar..." /></Field>
+            </div>
+            <div style={{ gridColumn: "1/-1" }}><Field label="Descrição"><textarea value={form.descricao || ""} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição do imóvel..." rows={3} style={{ resize: "vertical" }} /></Field></div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}><button className="btn-ghost" onClick={() => setMod(false)}>Cancelar</button><button className="btn-gold" onClick={save}>{editId ? "Guardar" : "Cadastrar"}</button></div>
+        </Modal>
+      )}
+
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
       {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
@@ -5615,7 +5665,7 @@ const TipologiaSelector = ({ value = [], onChange }) => {
   );
 };
 
-const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:""};
+const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:"", perfilCliente:"comprador_tradicional", requisitosEspecificos:{}};
 // ── FICHA DETALHADA DO CLIENTE ────────────────────────────────
 const partilharCliente = async (c) => {
   const texto = `👤 ${c.nome}\n📞 ${c.telefone||"—"}\n✉️ ${c.email||"—"}\n💼 ${c.interesse} · Até ${fmtFull(c.orcamento)}${c.interesse==="Arrendar"?"/mês":""}\n📍 ${c.bairros||"—"}\n${c.obs?"\n"+c.obs:""}\n\nMagna Group Real Estate`;
@@ -6177,12 +6227,59 @@ const Clientes=({clientes,setClientes,mob})=>{
         ))}
       </div>
       {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={window.__magnaUser}/>}
+      
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div style={{gridColumn:"1/-1"}}><Field label="Nome completo"><input value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))} placeholder="Nome do cliente"/></Field></div>
+          
+          <div style={{gridColumn:"1/-1", marginTop: 4}}>
+            <Field label="Perfil do Cliente">
+              <select value={form.perfilCliente || "comprador_tradicional"} onChange={e=>{
+                const perfil = e.target.value;
+                let reqs = {};
+                if (perfil === 'investidor') reqs = { yieldEsperado: "", orcamentoObras: "" };
+                if (perfil === 'expat_relocation') reqs = { dataChegada: "", visto: "", utilitySetup: false };
+                setForm(p=>({...p, perfilCliente: perfil, requisitosEspecificos: reqs}));
+              }}>
+                <option value="comprador_tradicional">Comprador Tradicional</option>
+                <option value="investidor">Investidor (Yield/Reabilitação)</option>
+                <option value="expat_relocation">Expat / Relocation</option>
+                <option value="proprietario_ativo">Proprietário Ativo</option>
+              </select>
+            </Field>
+          </div>
+
+          {form.perfilCliente === 'expat_relocation' && (
+            <div style={{gridColumn:"1/-1", display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, background: `${G.blue}10`, padding: 14, borderRadius: 8, border: `1px solid ${G.blue}30` }}>
+              <Field label="Data de Chegada a Portugal">
+                <input type="date" value={form.requisitosEspecificos?.dataChegada || ""} onChange={e=>setForm(p=>({...p, requisitosEspecificos: {...p.requisitosEspecificos, dataChegada: e.target.value}}))} />
+              </Field>
+              <Field label="Tipo de Visto">
+                <select value={form.requisitosEspecificos?.visto || ""} onChange={e=>setForm(p=>({...p, requisitosEspecificos: {...p.requisitosEspecificos, visto: e.target.value}}))}>
+                  <option value="">Não definido</option><option value="D7">D7 (Rendimentos passivos)</option><option value="D8">D8 (Nómada Digital)</option><option value="Golden Visa">Golden Visa</option>
+                </select>
+              </Field>
+              <label style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: G.text }}>
+                <input type="checkbox" checked={form.requisitosEspecificos?.utilitySetup || false} onChange={e=>setForm(p=>({...p, requisitosEspecificos: {...p.requisitosEspecificos, utilitySetup: e.target.checked}}))} style={{width:"auto"}}/>
+                Serviço de Utility Setup (Água, Luz, Internet) desejado
+              </label>
+            </div>
+          )}
+
+          {form.perfilCliente === 'investidor' && (
+            <div style={{gridColumn:"1/-1", display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, background: `${G.gold1}10`, padding: 14, borderRadius: 8, border: `1px solid ${G.gold1}30` }}>
+              <Field label="Yield Líquido Esperado (%)">
+                <input type="number" step="0.5" value={form.requisitosEspecificos?.yieldEsperado || ""} onChange={e=>setForm(p=>({...p, requisitosEspecificos: {...p.requisitosEspecificos, yieldEsperado: e.target.value}}))} placeholder="Ex: 5.5" />
+              </Field>
+              <Field label="Orçamento para Obras (€)">
+                <input type="number" value={form.requisitosEspecificos?.orcamentoObras || ""} onChange={e=>setForm(p=>({...p, requisitosEspecificos: {...p.requisitosEspecificos, orcamentoObras: e.target.value}}))} placeholder="Ex: 50000" />
+              </Field>
+            </div>
+          )}
+
           <Field label="E-mail"><input value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="email@exemplo.pt"/></Field>
           <Field label="Telefone"><input value={form.telefone} onChange={e=>setForm(p=>({...p,telefone:e.target.value}))} placeholder="912 345 678"/></Field>
-         <Field label="Interesse"><select value={form.interesse} onChange={e=>setForm(p=>({...p,interesse:e.target.value}))}><option>Comprar</option><option>Arrendar</option><option>Vender</option></select></Field>
+          <Field label="Interesse"><select value={form.interesse} onChange={e=>setForm(p=>({...p,interesse:e.target.value}))}><option>Comprar</option><option>Arrendar</option><option>Vender</option></select></Field>
           <Field label="Temperatura"><select value={form.temperatura} onChange={e=>setForm(p=>({...p,temperatura:e.target.value}))}><option>Quente</option><option>Morno</option><option>Frio</option></select></Field>
           <div style={{gridColumn:"1/-1"}}>
             <Field label="Tipologia pretendida (opcional)">
