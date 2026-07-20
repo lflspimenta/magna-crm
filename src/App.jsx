@@ -6983,6 +6983,7 @@ const htmlDossierInvestidor = (imovel, mercado, m, agente) => {
   const eur = (v) => Number(v||0).toLocaleString("pt-PT",{maximumFractionDigits:0}) + " €";
   const pct = (v) => Number(v||0).toLocaleString("pt-PT",{maximumFractionDigits:1}) + "%";
   const ganhoEquity = m.descontoMercado>0 ? (m.descontoMercado/100*mercado.preco_m2_medio*imovel.area) : 0;
+  const isTerreno = imovel.tipoAtivo === "terreno";
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Dossier de Investimento — ${imovel.titulo}</title>
@@ -7079,8 +7080,13 @@ h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#
 
 <div class="exec-summary">
   <div class="exec-item"><div class="exec-label">Desconto de Mercado</div><div class="exec-value ${m.descontoMercado>0?'pos':''}">${pct(Math.abs(m.descontoMercado))}</div></div>
+  ${isTerreno ? `
+  <div class="exec-item"><div class="exec-label">Ganho Estimado Revenda</div><div class="exec-value pos">${eur(m.ganhoRevendaRapida)}</div></div>
+  <div class="exec-item"><div class="exec-label">Projecto Aprovado</div><div class="exec-value" style="font-size:20px">${imovel.temProjetoAprovado?"Sim":"Não"}</div></div>
+  ` : `
   <div class="exec-item"><div class="exec-label">Yield Líquida</div><div class="exec-value">${pct(m.yieldLiquida)}</div></div>
   <div class="exec-item"><div class="exec-label">Cash-on-Cash</div><div class="exec-value">${pct(m.cashOnCash)}</div></div>
+  `}
   <div class="exec-item"><div class="exec-label">Investimento Total</div><div class="exec-value" style="font-size:20px">${eur(m.investimentoTotal)}</div></div>
 </div>
 
@@ -7089,24 +7095,67 @@ h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#
 <div class="section">
   <div class="section-num">01</div>
   <h2>Localização e Fundamentos</h2>
-  <p class="lead">${mercado.narrativa || `${imovel.titulo} está localizado em ${loc}, uma zona com fundamentos sólidos para valorização e procura de arrendamento sustentada.`}</p>
+  <p class="lead">${mercado.narrativa || `${imovel.titulo} está localizado em ${loc}, uma zona com fundamentos sólidos para valorização${isTerreno?"":" e procura de arrendamento sustentada"}.`}</p>
   <div class="argumentos">
     ${(mercado.argumentos||[]).map((a,i)=>`<div class="arg"><div class="arg-num">${String(i+1).padStart(2,"0")}</div><div class="arg-txt">${a}</div></div>`).join("")}
   </div>
+  ${isTerreno ? `<div class="context-note"><strong>Especificações do terreno:</strong> Projecto aprovado: ${imovel.temProjetoAprovado?"Sim":"Não"} · Topografia: ${imovel.topografia||"—"}${imovel.viabilidadeConstrutivaPip?` · ${imovel.viabilidadeConstrutivaPip}`:""}${(imovel.infraestruturasBasicas||[]).length?` · Infraestruturas: ${imovel.infraestruturasBasicas.join(", ")}`:""}</div>`:""}
 </div>
 
 <div class="section">
   <div class="section-num">02</div>
   <h2>Margem de Negócio</h2>
-  <p class="lead">Este imóvel está a ser transaccionado a <strong>${eur(m.precoM2Imovel)}/m²</strong>, face a uma média de <strong>${eur(mercado.preco_m2_medio)}/m²</strong> para imóveis comparáveis na mesma zona${mercado.fonte_precos?` (fonte: ${mercado.fonte_precos})`:""}.</p>
+  <p class="lead">Este ${isTerreno?"terreno":"imóvel"} está a ser transaccionado a <strong>${eur(m.precoM2Imovel)}/m²</strong>, face a uma média de <strong>${eur(mercado.preco_m2_medio)}/m²</strong> para ${isTerreno?"terrenos comparáveis":"imóveis comparáveis"} na mesma zona${mercado.fonte_precos?` (fonte: ${mercado.fonte_precos})`:""}.</p>
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-label">Preço /m² Aquisição</div><div class="kpi-value">${eur(m.precoM2Imovel)}</div></div>
     <div class="kpi"><div class="kpi-label">Preço /m² Médio Zona</div><div class="kpi-value">${eur(mercado.preco_m2_medio)}</div></div>
     <div class="kpi"><div class="kpi-label">${m.descontoMercado>0?"Desconto":"Prémio"} face ao Mercado</div><div class="kpi-value">${pct(Math.abs(m.descontoMercado))}</div></div>
   </div>
-  ${ganhoEquity>0?`<div class="context-note">Ao preço actual, este imóvel representa um <strong>ganho potencial imediato de ${eur(ganhoEquity)}</strong> (instant equity) face ao valor médio de mercado da zona — capital que o investidor captura no momento da aquisição, antes de qualquer valorização futura.</div>`:""}
+  ${ganhoEquity>0?`<div class="context-note">Ao preço actual, este ${isTerreno?"terreno":"imóvel"} representa um <strong>ganho potencial imediato de ${eur(ganhoEquity)}</strong> (instant equity) face ao valor médio de mercado da zona — capital que o investidor captura no momento da aquisição, antes de qualquer valorização futura.</div>`:""}
 </div>
 
+${isTerreno ? `
+<div class="section">
+  <div class="section-num">03</div>
+  <h2>Estrutura de Investimento</h2>
+  <p class="lead">Custos de aquisição de um terreno. Não são aplicáveis métricas de rentabilidade por arrendamento, uma vez que um terreno não gera renda enquanto não for edificado.</p>
+  <div class="statement">
+    <div class="statement-row"><div class="label">Preço de aquisição</div><div class="value">${eur(imovel.valor)}</div></div>
+    <div class="statement-row deduction"><div class="label">IMT<small>Imposto Municipal sobre Transmissões</small></div><div class="value">+ ${eur(m.imt)}</div></div>
+    <div class="statement-row deduction"><div class="label">Imposto do Selo<small>0,8% da base tributável</small></div><div class="value">+ ${eur(m.selo)}</div></div>
+    <div class="statement-row deduction"><div class="label">Emolumentos e registo<small>Notário, conservatória</small></div><div class="value">+ ${eur(m.custosTransacao-m.imt-m.selo)}</div></div>
+    <div class="statement-row total"><div class="label">Investimento Total</div><div class="value">${eur(m.investimentoSemObras)}</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-num">04</div>
+  <h2>Cenários de Saída</h2>
+  <p class="lead">Dois caminhos possíveis para este terreno, consoante o apetite de risco e horizonte temporal do investidor.</p>
+
+  <div class="scenario">
+    <div class="scenario-head"><span class="scenario-name">A · Revenda Directa do Terreno</span><span class="scenario-tag">Instant Equity</span></div>
+    <p class="scenario-desc">Aquisição e revenda do terreno sem intervenção, capturando o desconto de aquisição num horizonte curto de ${m.mesesRevendaRapida} meses.</p>
+    <div class="scenario-grid">
+      <div class="sg-item"><div class="sg-label">Investimento Total</div><div class="sg-value">${eur(m.investimentoSemObras)}</div></div>
+      <div class="sg-item"><div class="sg-label">Valor Projectado Revenda</div><div class="sg-value">${eur(m.valorRevendaRapida)}</div></div>
+      <div class="sg-item"><div class="sg-label">Ganho Estimado</div><div class="sg-value">${eur(m.ganhoRevendaRapida)}</div></div>
+    </div>
+    <p class="scenario-foot">Não inclui tributação de mais-valias nem custos de revenda.</p>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-head"><span class="scenario-name">B · Construir e Vender</span><span class="scenario-tag">Ganho de Capital</span></div>
+    <p class="scenario-desc">Desenvolvimento do terreno${imovel.temProjetoAprovado?" (projecto já aprovado)":""} e venda das unidades construídas, num horizonte de ${m.meses} meses.</p>
+    <div class="scenario-grid">
+      <div class="sg-item"><div class="sg-label">Valor do Terreno + Prémio</div><div class="sg-value">${eur(m.valorPosObras)}</div></div>
+      <div class="sg-item"><div class="sg-label">Valor Projectado</div><div class="sg-value">${eur(m.valorProjectado)}</div></div>
+      <div class="sg-item"><div class="sg-label">Mais-Valia Estimada</div><div class="sg-value">${eur(m.maisValia)}</div></div>
+    </div>
+    <p class="scenario-foot">Assume valorização anual de ${pct(mercado.valorizacao_anual_pct)} na zona. Não inclui custo de construção, tributação de mais-valias nem custos de revenda — apenas o efeito da valorização do terreno com projecto associado.</p>
+  </div>
+</div>
+` : `
 <div class="section">
   <div class="section-num">03</div>
   <h2>Análise Financeira</h2>
@@ -7188,10 +7237,12 @@ h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#
     <p class="scenario-foot">Não inclui tributação de mais-valias nem custos de revenda. Cenário mais conservador em prazo, sem exposição a obras.</p>
   </div>
 </div>
+`}
 
 <div class="disclaimer">
-  <strong>Nota importante:</strong> Este dossier apresenta estimativas construídas a partir de dados de mercado e pressupostos indicados, com o apoio de pesquisa assistida por inteligência artificial. Os valores de IMT, rendas, valorização e custos são aproximações para fins de análise preliminar e não constituem aconselhamento financeiro, fiscal ou de investimento. Antes de qualquer decisão, recomenda-se a confirmação dos valores fiscais junto do Portal das Finanças e a consulta a um contabilista, advogado ou consultor financeiro certificado.
+  <strong>Nota importante:</strong> Este dossier apresenta estimativas construídas a partir de dados de mercado e pressupostos indicados, com o apoio de pesquisa assistida por inteligência artificial. Os valores de IMT, ${isTerreno?"":"rendas, "}valorização e custos são aproximações para fins de análise preliminar e não constituem aconselhamento financeiro, fiscal ou de investimento. Antes de qualquer decisão, recomenda-se a confirmação dos valores fiscais junto do Portal das Finanças e a consulta a um contabilista, advogado ou consultor financeiro certificado.
 </div>
+
 
 </div>
 
@@ -7202,6 +7253,20 @@ h3{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#
 
 </div><script>window.print();window.onafterprint=()=>window.close();</script></body></html>`;
 };
+// Constrói a narrativa de abertura do dossier a partir de dados estruturados —
+// nunca reaproveita o "recomendacao" da Avaliação de Mercado, que é conselho de
+// estratégia de preço para o vendedor, não uma narrativa de venda para o investidor.
+const construirNarrativaInvestidor = (imovel, precoM2Mercado) => {
+  const loc = [imovel.freguesia, imovel.concelho].filter(Boolean).join(", ") || "uma localização estratégica";
+  const precoM2Imovel = imovel.area > 0 ? imovel.valor / imovel.area : 0;
+  const desconto = precoM2Mercado > 0 && precoM2Imovel > 0 ? ((precoM2Mercado - precoM2Imovel) / precoM2Mercado) * 100 : 0;
+  const descontoTxt = desconto > 5 ? ` a um valor cerca de ${desconto.toFixed(0)}% abaixo do preço médio de mercado da zona` : "";
+  if (imovel.tipoAtivo === "terreno") {
+    return `${imovel.titulo} é um terreno situado em ${loc}${descontoTxt}. ${imovel.temProjetoAprovado ? "Com projecto de construção já aprovado, elimina-se a incerteza urbanística e reduz-se significativamente o tempo até ao início de obra." : "O potencial construtivo desta localização representa uma oportunidade de valorização através de desenvolvimento futuro."}`;
+  }
+  return `${imovel.titulo} está localizado em ${loc}${descontoTxt}, uma zona com fundamentos sólidos para valorização e procura de arrendamento sustentada.`;
+};
+
 const gerarPDFDossierInvestidor = (imovel, mercado, m, agente) => {
   const win = window.open("","_blank");
   win.document.write(htmlDossierInvestidor(imovel, mercado, m, agente));
@@ -7210,22 +7275,23 @@ const gerarPDFDossierInvestidor = (imovel, mercado, m, agente) => {
 
 // ── Modal: Dossier de Investimento ──
 const GerarDossierInvestidor = ({ imovel, user, onClose }) => {
+  const isTerreno = imovel.tipoAtivo === "terreno";
   const avaliacaoExistente = imovel.avaliacaoIA;
   const [fase, setFase] = useState(avaliacaoExistente ? "pronto" : "form"); // form | pesquisando | pronto
   const [erro, setErro] = useState(null);
   const [mercado, setMercado] = useState(avaliacaoExistente ? {
     preco_m2_medio: avaliacaoExistente.precoPorM2 || 0,
-    renda_mensal_sugerida: avaliacaoExistente.rendaMensalEstimada || 0,
+    renda_mensal_sugerida: isTerreno ? 0 : (avaliacaoExistente.rendaMensalEstimada || 0),
     valorizacao_anual_pct: avaliacaoExistente.percentualVariacao || 3,
     argumentos: avaliacaoExistente.pontosFavoraveis || [],
     fonte_precos: (avaliacaoExistente.fontesConsultadas || []).join(", "),
   } : null);
-  const [narrativa, setNarrativa] = useState(avaliacaoExistente ? (avaliacaoExistente.recomendacao || "") : "");
+  const [narrativa, setNarrativa] = useState(avaliacaoExistente ? construirNarrativaInvestidor(imovel, avaliacaoExistente.precoPorM2) : "");
   const [usandoExistente, setUsandoExistente] = useState(!!avaliacaoExistente);
   const [input, setInput] = useState({
     precoAquisicao: imovel.valor || 0,
     area: imovel.area || 0,
-    estadoImovel: "Bom estado / Cosmético",
+    estadoImovel: isTerreno ? "Novo / Sem obras" : "Bom estado / Cosmético",
     tipoIMT: "nhpp",
     emolumentos: 900,
     imiPercent: 0.4,
@@ -7241,8 +7307,9 @@ const GerarDossierInvestidor = ({ imovel, user, onClose }) => {
     setFase("pesquisando"); setErro(null);
     try {
       const dados = await pesquisarMercadoInvestidor(imovel);
+      if (isTerreno) dados.renda_mensal_sugerida = 0;
       setMercado(dados);
-      setNarrativa(`Localizado em ${[imovel.freguesia,imovel.concelho].filter(Boolean).join(", ")}, este imóvel insere-se numa zona com procura consolidada e fundamentos claros de valorização.`);
+      setNarrativa(construirNarrativaInvestidor(imovel, dados.preco_m2_medio));
       setFase("pronto");
     } catch (e) {
       setErro("Não foi possível pesquisar dados de mercado automaticamente. Podes preencher os valores manualmente abaixo.");
