@@ -4134,9 +4134,16 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
           <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:28,fontWeight:600}}>Angariações</h1>
           <p style={{color:G.textMuted,fontSize:12,marginTop:2}}>{lista.length} contratos</p>
         </div>
-        <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={nova}>
-          <Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Nova":"Nova Angariação"}
-        </button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="btn-ghost" style={{padding:mob?"9px 12px":"10px 16px",fontSize:12,borderColor:`${G.gold1}50`,color:G.gold1}} onClick={() => gerarDossierConstrutor()}>
+            <Ic n="pdf" s={14} c={G.gold1}/>
+            {!mob && "Dossier Institucional"}
+          </button>
+          
+          <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={nova}>
+            <Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Nova":"Nova Angariação"}
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -5328,6 +5335,9 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,mob})=>{
         <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
+	<button className="btn-gold" onClick={() => gerarDossierInvestidor(imovel)} style={{flex:mob?"1 1 100%":1}}>
+  	<Ic n="pdf" s={14} c="#0E0E0F"/> Dossier Investidor
+	</button>
       </div>
     </Modal>
   );
@@ -6693,7 +6703,168 @@ const Dashboard=({imoveis,clientes,tarefas,user,setPage,mob})=>{
     </div>
   );
 };
+// ==========================================
+// 1. DOSSIER INSTITUCIONAL (Construtores / Promotores)
+// ==========================================
+const gerarDossierConstrutor = () => {
+  const hoje = new Date().toLocaleDateString("pt-PT");
+  const dadosEmpresa = {
+    nomeEmpresa: "Magna Group Real Estate",
+    fundadoras: [
+      { nome: "Cátia Barbosa", cargo: "Managing Partner & Founder", bio: "Especialista em transações de ativos de alto rendimento e coordenação de estratégias comerciais com promotores e construtores.", iniciais: "CB" },
+      { nome: "Ana Costa", cargo: "Managing Partner & Co-Founder", bio: "Foco total na qualificação de compradores, due diligence comercial e acompanhamento integral de grandes empreendimentos.", iniciais: "AC" }
+    ],
+    contactoGeral: "geral@magnagroup.pt",
+    telefoneGeral: "+351 900 000 000"
+  };
 
+  const win = window.open("", "_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Dossier de Apresentação — Magna Group Real Estate</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#222;background:#fff;line-height:1.7}
+.page{max-width:800px;margin:0 auto;padding:60px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:40px;padding-bottom:20px;border-bottom:2px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#8B6914;letter-spacing:2px}
+.logo-sub{font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+.tagline{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#888;text-align:right}
+.hero{background:linear-gradient(135deg,#111,#1e1a12);color:#fff;padding:40px;border-radius:10px;margin-bottom:30px;border-left:4px solid #C9A84C}
+.hero h1{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;margin-bottom:12px;color:#F0EDE6}
+.hero p{font-size:14px;color:#aaa;line-height:1.6}
+h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:6px;margin:30px 0 14px}
+.founders-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+.founder-card{background:#f9f7f1;padding:20px;border-radius:8px;border:1px solid #eee;text-align:center}
+.avatar-box{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#0E0E0F;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.box{background:#fcfbfa;border-radius:8px;padding:16px;border:1px solid #eee;text-align:center}
+.box-title{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#8B6914;margin-bottom:6px}
+.box-desc{font-size:12px;color:#666;line-height:1.5}
+.footer{margin-top:50px;padding-top:20px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+</style></head><body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="logo-name">MAGNA</div>
+      <div class="logo-sub">Group Real Estate · Portugal</div>
+    </div>
+    <div class="tagline">Dossier Institucional · Parcerias & Empreendimentos</div>
+  </div>
+  <div class="hero">
+    <h1>Excelência e Rigor na Comercialização de Ativos</h1>
+    <p>Apresentação corporativa dirigida a promotores, construtores e investidores institucionais. Descubra a nossa abordagem boutique focada na maximização do valor de cada empreendimento.</p>
+  </div>
+  <h2>A Liderança e Visão</h2>
+  <p style="font-size:14px;color:#444;margin-bottom:14px">A Magna Group Real Estate nasce da paixão pelo imobiliário de exigência e da convicção de que cada projeto imobiliário merece uma estratégia comercial à medida, transparente e altamente eficaz.</p>
+  <div class="founders-grid">
+    <div class="founder-card">
+      <div class="avatar-box">${dadosEmpresa.fundadoras[0].iniciais}</div>
+      <p style="font-weight:600;font-size:15px;color:#1a1a1a">${dadosEmpresa.fundadoras[0].nome}</p>
+      <p style="font-size:12px;color:#8B6914;margin-bottom:8px">${dadosEmpresa.fundadoras[0].cargo}</p>
+      <p style="font-size:12px;color:#666">${dadosEmpresa.fundadoras[0].bio}</p>
+    </div>
+    <div class="founder-card">
+      <div class="avatar-box">${dadosEmpresa.fundadoras[1].iniciais}</div>
+      <p style="font-weight:600;font-size:15px;color:#1a1a1a">${dadosEmpresa.fundadoras[1].nome}</p>
+      <p style="font-size:12px;color:#8B6914;margin-bottom:8px">${dadosEmpresa.fundadoras[1].cargo}</p>
+      <p style="font-size:12px;color:#666">${dadosEmpresa.fundadoras[1].bio}</p>
+    </div>
+  </div>
+  <h2>O Nosso Diferencial Comercial</h2>
+  <div class="grid3">
+    <div class="box"><div class="box-title">Rede Qualificada</div><div class="box-desc">Acesso direto a investidores privados, fundos e perfis internacionais em busca de produto pronto ou para reabilitação.</div></div>
+    <div class="box"><div class="box-title">Estratégia Tailor-Made</div><div class="box-desc">Plano de marketing dedicado por ativo, posicionamento de marca premium e campanhas digitais segmentadas.</div></div>
+    <div class="box"><div class="box-title">Proatividade Total</div><div class="box-desc">Relatórios de progresso regulares, feedback imediato de visitas e gestão rigorosa de propostas.</div></div>
+  </div>
+  <h2>Compromisso com o Construtor</h2>
+  <p style="font-size:13px;color:#555;line-height:1.7;background:#faf9f5;padding:16px;border-radius:6px;border-left:3px solid #C9A84C">
+    "O nosso compromisso é ser um verdadeiro parceiro de negócio do construtor/promotor. Não olhamos para um prédio ou terreno apenas como mais um produto, mas sim como a concretização de um investimento que exige o máximo retorno e rigor."
+  </p>
+  <div class="footer">
+    <div><strong>${dadosEmpresa.nomeEmpresa}</strong><br>Contacto geral: ${dadosEmpresa.contactoGeral} · ${dadosEmpresa.telefoneGeral}</div>
+    <div style="text-align:right">Documento gerado em ${hoje}<br><em>Confidencial · Proposta de Parceria</em></div>
+  </div>
+</div>
+<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar em PDF</button>
+</body></html>`);
+  win.document.close();
+};
+
+// ==========================================
+// 2. DOSSIER DE INVESTIDOR (Imóveis)
+// ==========================================
+const gerarDossierInvestidor = (imovel) => {
+  const hoje = new Date().toLocaleDateString("pt-PT");
+  const precoAquisicao = imovel?.valor || 150000;
+  const custoObras = imovel?.orcamentoObras || (precoAquisicao * 0.15); 
+  const investimentoTotal = precoAquisicao + custoObras;
+  const rendaMensalEst = imovel?.rendaMensal || (precoAquisicao * 0.006);
+  const yieldBruto = ((rendaMensalEst * 12) / precoAquisicao * 100).toFixed(2);
+  const yieldGlobal = ((rendaMensalEst * 12) / investimentoTotal * 100).toFixed(2);
+
+  const win = window.open("", "_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Dossier de Oportunidade (Investidor) — Magna Group</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#222;background:#fff;line-height:1.6}
+.page{max-width:800px;margin:0 auto;padding:50px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;padding-bottom:15px;border-bottom:2px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#8B6914;letter-spacing:2px}
+.logo-sub{font-size:9px;color:#888;letter-spacing:3px;text-transform:uppercase}
+.badge{background:#f9f7f1;border:1px solid #e8d5a0;padding:6px 14px;border-radius:20px;font-size:11px;color:#8B6914;font-weight:500;text-transform:uppercase;letter-spacing:1px}
+.property-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:#111;margin-bottom:6px}
+.property-sub{font-size:13px;color:#666;margin-bottom:24px}
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px}
+.metric-card{background:#fcfbfa;border:1px solid #eee;border-radius:8px;padding:16px;text-align:center}
+.metric-label{font-size:11px;color:#777;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.metric-value{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#8B6914}
+h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:4px;margin:24px 0 12px}
+.table-financial{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px}
+.table-financial th{background:#f9f7f1;color:#444;text-align:left;padding:10px;border-bottom:1px solid #ddd;font-weight:500}
+.table-financial td{padding:10px;border-bottom:1px solid #eee;color:#333}
+.footer{margin-top:40px;padding-top:15px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+</style></head><body>
+<div class="page">
+  <div class="header">
+    <div><div class="logo-name">MAGNA</div><div class="logo-sub">Group Real Estate · Investidores</div></div>
+    <div class="badge">Análise de Oportunidade</div>
+  </div>
+  <div class="property-title">${imovel?.titulo || "Ativo Imobiliário Premium"}</div>
+  <div class="property-sub">📍 ${imovel?.localizacao || imovel?.bairro || "Portugal"} · Tipo: ${imovel?.tipo || "Imóvel"}</div>
+  <div class="metrics-grid">
+    <div class="metric-card"><div class="metric-label">Aquisição</div><div class="metric-value">${precoAquisicao.toLocaleString()} €</div></div>
+    <div class="metric-card"><div class="metric-label">Investimento Total</div><div class="metric-value">${investimentoTotal.toLocaleString()} €</div></div>
+    <div class="metric-card"><div class="metric-label">Renda Est. (Mês)</div><div class="metric-value">${Math.round(rendaMensalEst).toLocaleString()} €</div></div>
+    <div class="metric-card"><div class="metric-label">Yield Estimada</div><div class="metric-value">${yieldGlobal}%</div></div>
+  </div>
+  <h2>Análise Financeira do Projeto</h2>
+  <table class="table-financial">
+    <tr><th>Componente de Custo / Retorno</th><th>Valor Estimado</th><th>Notas / Premissas</th></tr>
+    <tr><td><strong>Preço de Aquisição do Ativo</strong></td><td>${precoAquisicao.toLocaleString()} €</td><td>Valor base de mercado</td></tr>
+    <tr><td><strong>Estimativa de Reabilitação / Obras</strong></td><td>${custoObras.toLocaleString()} €</td><td>Ajustado ao estado de conservação</td></tr>
+    <tr><td><strong>Investimento Global Previsto</strong></td><td><strong>${investimentoTotal.toLocaleString()} €</strong></td><td>Aquisição + CapEx de Obras</td></tr>
+    <tr><td><strong>Retorno Bruto Anual (Rendas)</strong></td><td>${(rendaMensalEst * 12).toLocaleString()} € / ano</td><td>Baseado em comparáveis (${yieldBruto}% bruto)</td></tr>
+  </table>
+  <h2>Estratégia Magna Group & Serviços Associados</h2>
+  <p style="font-size:13px;color:#555;line-height:1.6;margin-bottom:14px">
+    Este ativo apresenta forte potencial de rentabilização através da rede de serviços integrados da Magna Group, desde a coordenação de reabilitação até à gestão de arrendamento ou Alojamento Local.
+  </p>
+  <div class="footer">
+    <div><strong>Magna Group Real Estate</strong><br>Dossier confidencial para análise de investimento.</div>
+    <div style="text-align:right">Emitido em ${hoje}<br><em>Valores sujeitos a due diligence.</em></div>
+  </div>
+</div>
+<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar Dossier PDF</button>
+</body></html>`);
+  win.document.close();
+};
 // ── APP ROOT ──────────────────────────────────────────────────
 export default function App() {
   const [user,setUser]         = useState(null);
