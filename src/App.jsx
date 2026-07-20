@@ -3263,7 +3263,14 @@ IMÓVEL:
 - País: Portugal
 - Área: ${imovel.area}m²
 - Quartos: ${imovel.quartos || 0}
-- Valor actual: ${fmtFull(imovel.valor)}
+- Valor actual: ${fmtFull(imovel.valor)}${imovel.tipoAtivo === "terreno" ? `
+
+ESPECIFICAÇÕES DO TERRENO (factores decisivos para o valor):
+- Projecto de construção aprovado: ${imovel.temProjetoAprovado ? "Sim" : "Não"}
+- Topografia: ${imovel.topografia || "Desconhecida"}
+- Viabilidade construtiva / PIP: ${imovel.viabilidadeConstrutivaPip || "Não especificada"}
+- Infraestruturas básicas disponíveis: ${(imovel.infraestruturasBasicas||[]).join(", ") || "Não especificadas"}
+Considera estes factores na avaliação — um terreno com projecto aprovado e infraestruturas vale significativamente mais do que um terreno rústico sem viabilidade construtiva definida.` : ""}
 
 Faz no máximo 2 pesquisas web para obter preço de venda por m² e renda mensal média nesta zona:
 1. "${imovel.tipo} ${zona} preço euros m² Idealista Imovirtual 2026"
@@ -5326,6 +5333,26 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mo
         </div>
       </div>
 
+      {/* Especificações do Terreno */}
+      {imovel.tipoAtivo === "terreno" && (
+        <div style={{background:`${G.gold1}0A`,border:`1px solid ${G.gold1}30`,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+          <p style={{fontSize:11,color:G.gold1,marginBottom:8,textTransform:"uppercase",letterSpacing:".3px"}}>Especificações do Terreno</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:imovel.viabilidadeConstrutivaPip||((imovel.infraestruturasBasicas||[]).length>0)?10:0}}>
+            <div><p style={{fontSize:10,color:G.textDim}}>Projecto Aprovado</p><p style={{fontSize:13,fontWeight:500}}>{imovel.temProjetoAprovado?"Sim":"Não"}</p></div>
+            <div><p style={{fontSize:10,color:G.textDim}}>Topografia</p><p style={{fontSize:13,fontWeight:500}}>{imovel.topografia||"—"}</p></div>
+          </div>
+          {imovel.viabilidadeConstrutivaPip && <div style={{marginBottom:(imovel.infraestruturasBasicas||[]).length>0?10:0}}><p style={{fontSize:10,color:G.textDim}}>Viabilidade Construtiva / PIP</p><p style={{fontSize:13,fontWeight:500}}>{imovel.viabilidadeConstrutivaPip}</p></div>}
+          {(imovel.infraestruturasBasicas||[]).length>0 && (
+            <div>
+              <p style={{fontSize:10,color:G.textDim,marginBottom:5}}>Infraestruturas Básicas</p>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {imovel.infraestruturasBasicas.map(inf=><span key={inf} className="tag" style={{background:G.surface3,color:G.textMuted}}>{inf}</span>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Descrição */}
       {imovel.descricao&&<div style={{marginBottom:18}}>
         <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Descrição</p>
@@ -5472,6 +5499,20 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
                     <Field label="Viabilidade Construtiva / PIP">
                       <input value={form.viabilidadeConstrutivaPip || ""} onChange={e => setForm(p => ({ ...p, viabilidadeConstrutivaPip: e.target.value }))} placeholder="Ex: Construção aprovada até 2 pisos, 400m2 implantação" />
                     </Field>
+                  </div>
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <p style={{ fontSize: 12, color: G.textMuted, marginBottom: 8 }}>Infraestruturas Básicas Disponíveis</p>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {["Água", "Electricidade", "Saneamento", "Gás", "Telecomunicações", "Acesso Pavimentado"].map(inf => {
+                        const activo = (form.infraestruturasBasicas || []).includes(inf);
+                        return (
+                          <button key={inf} type="button" onClick={() => setForm(p => {
+                            const atuais = p.infraestruturasBasicas || [];
+                            return { ...p, infraestruturasBasicas: atuais.includes(inf) ? atuais.filter(x => x !== inf) : [...atuais, inf] };
+                          })} style={{ background: activo ? G.gold1 : "transparent", color: activo ? "#0E0E0F" : G.textMuted, border: `1px solid ${activo ? G.gold1 : G.border}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{inf}</button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
