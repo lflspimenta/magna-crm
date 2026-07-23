@@ -4878,21 +4878,39 @@ const ImportModal = ({onClose, onImport}) => {
     return {titulo,tipo,finalidade,valor,area,quartos,casasBanho,bairro,concelho,distrito,cidade:concelho,descricao,referencia,foto:fotoMap[tipo]||"🏠",status:"Disponível",portal:detectPortal(url)||"Manual",encontrado:valor>0||area>0||quartos>0};
   };
 
-  // ── Importar por link (via API / callClaude) ──────────────────
+  // ── Importar por link (fetch directo ao portal + Haiku, sem pesquisa web) ──
   const importarPorLink = async () => {
     if (!portal) { setError("Cola um link válido do Idealista ou Imovirtual."); return; }
     setLoad(true); setError(""); setPreview(null);
     try {
-      setStep(`🔍 A pesquisar o anúncio no ${portal}...`);
-      const prompt = `Acede a este anúncio imobiliário português e extrai todos os dados.
-URL: ${url}
-Usa web_search para pesquisar: "${url}"
-Portal: ${portal}
-Devolve APENAS JSON válido (sem markdown):
-{"titulo":"<título>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número>,"area":<número>,"quartos":<número>,"casasBanho":<número>,"freguesia":"<freguesia>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona>","descricao":"<até 300 chars>","referencia":"<ref>","encontrado":true}
-Se não encontrares: {"encontrado":false,"motivo":"<razão>"}`;
+      setStep(`🔍 A aceder ao anúncio no ${portal}...`);
+      const res = await fetch("/api/extract-listing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (data.error || !data.html) throw new Error(data.error || "Não foi possível aceder ao anúncio.");
+
       setStep("🤖 A extrair dados com IA...");
-      const raw = await callClaude(prompt, "claude-haiku-4-5");
+      const prompt = `Extrai os dados deste anúncio imobiliário português. O conteúdo foi obtido directamente da página do anúncio (${portal}).
+
+CONTEÚDO DA PÁGINA:
+"""
+${data.html.slice(0, 20000)}
+"""
+
+Devolve APENAS JSON válido (sem markdown, sem explicações):
+{"titulo":"<título curto e descritivo>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número sem símbolos>,"area":<número em m²>,"quartos":<número, ex: T3 = 3>,"casasBanho":<número>,"freguesia":"<freguesia se mencionada>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona/bairro>","descricao":"<resumo até 300 chars>","referencia":"<referência do anúncio se houver>","encontrado":true}
+
+Regras:
+- Se um campo não existir na página, usa "" para texto ou 0 para números.
+- "valor" é o preço (remove € e espaços). Se for arrendamento, é o valor mensal.
+- "quartos": extrai de T0/T1/T2/T3... (tipologia).
+- Identifica o distrito a partir do concelho se possível (ex: Cascais → Lisboa; Barcelos → Braga).
+- Se a página não tiver dados imobiliários (ex: anúncio removido, página de erro): {"encontrado":false,"motivo":"Anúncio não encontrado ou removido"}`;
+
+      const raw = await callClaude(prompt, "claude-haiku-4-5", false);
       setStep("📋 A preparar pré-visualização...");
       const json = parseJSON(raw);
       if (!json) throw new Error("Não foi possível processar a resposta da IA.");
@@ -4900,14 +4918,11 @@ Se não encontrares: {"encontrado":false,"motivo":"<razão>"}`;
       json.foto = fotoMap[json.tipo] || "🏠";
       json.status = "Disponível";
       json.cidade = json.concelho || "";
+      json.portal = portal;
       setPreview(json);
     } catch(e) {
       const msg = e.message||"";
-      if (msg.includes("CORS")||msg.includes("fetch")||msg.includes("Failed")||msg.includes("ligar")) {
-        setError("Não foi possível ligar à API fora do Claude.ai (CORS). Usa o método \"Colar Texto\" — funciona em qualquer lugar.");
-      } else {
-        setError(msg || "Erro ao importar. Tenta novamente.");
-      }
+      setError((msg || "Erro ao importar.") + " Tenta \"Colar Texto\" em alternativa.");
     } finally { setLoad(false); setStep(""); }
   };
 
@@ -5020,9 +5035,9 @@ Regras:
             {url && !portal && <p style={{fontSize:12,color:"#E0A052",marginTop:5}}>⚠ Cola um link do Idealista ou Imovirtual</p>}
           </div>
           <div style={{background:`${G.blue}10`,border:`1px solid ${G.blue}30`,borderRadius:8,padding:"11px 14px",marginBottom:12}}>
-            <p style={{fontSize:12,color:G.blue,fontWeight:500,marginBottom:4}}>ℹ️ Requer ligação à API</p>
+            <p style={{fontSize:12,color:G.blue,fontWeight:500,marginBottom:4}}>ℹ️ Acesso directo ao anúncio</p>
             <p style={{fontSize:12,color:G.textMuted,lineHeight:1.6}}>
-              Este método usa IA para aceder ao anúncio. Funciona <strong style={{color:G.text}}>dentro do Claude.ai</strong> ou com o <strong style={{color:G.text}}>backend Node.js</strong> instalado. Se deres erro, usa o método <strong style={{color:G.gold1,cursor:"pointer"}} onClick={()=>{setModo("texto");setError("");}}>Colar Texto →</strong>
+              Vamos buscar os dados directamente à página do anúncio. Se o portal bloquear o pedido, usa <strong style={{color:G.gold1,cursor:"pointer"}} onClick={()=>{setModo("texto");setError("");}}>Colar Texto →</strong> em alternativa.
             </p>
           </div>
         </>
