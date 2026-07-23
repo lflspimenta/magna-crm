@@ -4842,6 +4842,8 @@ const ImportModal = ({onClose, onImport}) => {
   const [step, setStep]       = useState("");
   const [error, setError]     = useState("");
   const [preview, setPreview] = useState(null);
+  const [imagensSel, setImagensSel] = useState([]);
+  const [importandoFotos, setImportandoFotos] = useState(false);
 
   const detectPortal = (u) => {
     if (u.includes("idealista.pt"))  return "Idealista";
@@ -4901,13 +4903,14 @@ ${data.html.slice(0, 20000)}
 """
 
 Devolve APENAS JSON válido (sem markdown, sem explicações):
-{"titulo":"<título curto e descritivo>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número sem símbolos>,"area":<número em m²>,"quartos":<número, ex: T3 = 3>,"casasBanho":<número>,"freguesia":"<freguesia se mencionada>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona/bairro>","descricao":"<resumo até 300 chars>","referencia":"<referência do anúncio se houver>","encontrado":true}
+{"titulo":"<título curto e descritivo>","tipo":"<Apartamento|Moradia|Terreno|Comercial|Escritório>","finalidade":"<Venda|Arrendamento>","valor":<número sem símbolos>,"area":<número em m²>,"quartos":<número, ex: T3 = 3>,"casasBanho":<número>,"freguesia":"<freguesia se mencionada>","concelho":"<concelho>","distrito":"<distrito>","bairro":"<zona/bairro>","descricao":"<resumo até 300 chars>","referencia":"<referência do anúncio se houver>","imagens":["<url1>","<url2>","..."],"encontrado":true}
 
 Regras:
 - Se um campo não existir na página, usa "" para texto ou 0 para números.
 - "valor" é o preço (remove € e espaços). Se for arrendamento, é o valor mensal.
 - "quartos": extrai de T0/T1/T2/T3... (tipologia).
 - Identifica o distrito a partir do concelho se possível (ex: Cascais → Lisboa; Barcelos → Braga).
+- "imagens": procura no HTML por URLs de imagens do anúncio (tags <img src="...">, atributos og:image, ou padrões de CDN como img4.idealista.pt ou olxcdn.com). Devolve até 8 URLs completos e válidos (começam por http). Ignora ícones, logótipos e imagens de mapas.
 - Se a página não tiver dados imobiliários (ex: anúncio removido, página de erro): {"encontrado":false,"motivo":"Anúncio não encontrado ou removido"}`;
 
       const raw = await callClaude(prompt, "claude-haiku-4-5", false);
@@ -4919,6 +4922,8 @@ Regras:
       json.status = "Disponível";
       json.cidade = json.concelho || "";
       json.portal = portal;
+      json.imagens = (data.imagens && data.imagens.length > 0) ? data.imagens : (json.imagens || []);
+      setImagensSel(json.imagens);
       setPreview(json);
     } catch(e) {
       const msg = e.message||"";
@@ -4976,7 +4981,35 @@ Regras:
     } finally { setLoad(false); setStep(""); }
   };
 
-  const resetar = () => { setPreview(null); setError(""); };
+  const resetar = () => { setPreview(null); setError(""); setImagensSel([]); };
+
+  // Descarrega as fotos seleccionadas via função Netlify (evita CORS) e faz upload para o Supabase
+  const importarEAdicionar = async () => {
+    if (imagensSel.length === 0) { onImport(preview); return; }
+    setImportandoFotos(true);
+    const fotosImportadas = [];
+    for (const src of imagensSel) {
+      try {
+        const res = await fetch("/api/fetch-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: src }),
+        });
+        const data = await res.json();
+        if (data.error || !data.base64) continue;
+        const byteChars = atob(data.base64);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: data.contentType || "image/jpeg" });
+        const ext = (data.contentType || "").includes("png") ? "png" : "jpg";
+        const file = new File([blob], `importado-${Date.now()}-${fotosImportadas.length}.${ext}`, { type: blob.type });
+        const url = await uploadFoto(file);
+        fotosImportadas.push(url);
+      } catch (e) { console.error("erro ao importar foto:", e.message); }
+    }
+    setImportandoFotos(false);
+    onImport({ ...preview, fotos: fotosImportadas });
+  };
 
   return (
     <Modal title="" onClose={onClose}>
@@ -5081,6 +5114,25 @@ Regras:
             {preview.descricao && <p style={{fontSize:11,color:G.textMuted,fontStyle:"italic",marginTop:10,borderTop:`1px solid ${G.border}`,paddingTop:8}}>"{preview.descricao.slice(0,160)}..."</p>}
             {preview.referencia && <p style={{fontSize:11,color:G.textDim,marginTop:6}}>Ref: {preview.referencia} · {preview.portal}</p>}
           </div>
+
+          {preview.imagens && preview.imagens.length > 0 && (
+            <div style={{marginBottom:12}}>
+              <p style={{fontSize:12,fontWeight:500,color:G.text,marginBottom:8}}>📷 Fotos encontradas ({imagensSel.length}/{preview.imagens.length} seleccionadas)</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                {preview.imagens.map((src,i)=>{
+                  const sel = imagensSel.includes(src);
+                  return (
+                    <div key={i} onClick={()=>setImagensSel(p=>sel?p.filter(x=>x!==src):[...p,src])}
+                      style={{position:"relative",cursor:"pointer",borderRadius:8,overflow:"hidden",border:`2px solid ${sel?G.gold1:"transparent"}`,opacity:sel?1:0.4}}>
+                      <img src={src} alt="" style={{width:"100%",height:70,objectFit:"cover",display:"block"}}/>
+                      {sel && <div style={{position:"absolute",top:4,right:4,width:18,height:18,borderRadius:"50%",background:G.gold1,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic n="check" s={11} c="#0E0E0F"/></div>}
+                    </div>
+                  );
+                })}
+              </div>
+              <p style={{fontSize:11,color:G.textDim,marginTop:6}}>Fotos partilhadas por outra agência — clica para incluir/excluir da importação.</p>
+            </div>
+          )}
           <div style={{background:`${G.blue}10`,border:`1px solid ${G.blue}30`,borderRadius:8,padding:"9px 13px",marginBottom:12,display:"flex",gap:8,alignItems:"center"}}>
             <Ic n="info" s={14} c={G.blue}/>
             <p style={{fontSize:12,color:G.textMuted}}>Podes corrigir qualquer campo depois, editando o imóvel normalmente.</p>
@@ -5090,13 +5142,13 @@ Regras:
 
       {/* Botões */}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <button className="btn-ghost" onClick={()=>{if(preview)resetar();else onClose();}}>{preview?"Corrigir":"Cancelar"}</button>
+        <button className="btn-ghost" onClick={()=>{if(preview)resetar();else onClose();}} disabled={importandoFotos}>{preview?"Corrigir":"Cancelar"}</button>
         {!preview ? (
           modo==="texto"
             ? <button className="btn-gold" onClick={importarPorTexto} disabled={loading||texto.length<30}>Extrair Dados</button>
             : <button className="btn-gold" onClick={importarPorLink} disabled={loading||!portal}><Ic n="link" s={14} c="#0E0E0F"/>{loading?"A importar...":"Importar pelo Link"}</button>
         ) : (
-          <button className="btn-gold" onClick={()=>onImport(preview)}><Ic n="check" s={14} c="#0E0E0F"/>Adicionar ao CRM</button>
+          <button className="btn-gold" onClick={importarEAdicionar} disabled={importandoFotos}><Ic n="check" s={14} c="#0E0E0F"/>{importandoFotos?`A importar fotos (${imagensSel.length})...`:"Adicionar ao CRM"}</button>
         )}
       </div>
     </Modal>
