@@ -66,6 +66,23 @@ export const handler = async (event) => {
 
     let html = await res.text();
 
+    // Extrair imagens do HTML COMPLETO (antes de qualquer corte) — mais fiável
+    // do que pedir à IA para as encontrar num texto já truncado.
+    const imagensSet = new Set();
+    // og:image (sempre no <head>, uma imagem de capa garantida)
+    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    if (ogMatch) imagensSet.add(ogMatch[1]);
+    // <img src="..."> apontando para CDNs conhecidos dos portais
+    const imgRegex = /<img[^>]+src=["'](https?:\/\/[^"']+)["']/gi;
+    let m;
+    while ((m = imgRegex.exec(html)) !== null && imagensSet.size < 12) {
+      const src = m[1];
+      if (/idealista|olxcdn|imovirtual/i.test(src) && !/logo|icon|avatar|static\/img|loading/i.test(src)) {
+        imagensSet.add(src);
+      }
+    }
+    const imagens = Array.from(imagensSet).slice(0, 8);
+
     // Limpar o HTML: remover scripts, estilos e comentários para poupar tamanho
     // antes de enviar para a IA organizar os dados.
     html = html
@@ -83,7 +100,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
-      body: JSON.stringify({ html }),
+      body: JSON.stringify({ html, imagens }),
     };
   } catch (err) {
     console.error("extract-listing error:", err.message);
