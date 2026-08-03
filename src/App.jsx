@@ -6423,6 +6423,107 @@ const Proprietarios = ({ mob, userAtual }) => {
           ))}
         </div>
 
+        {(() => {
+          // ── Checklist para CPCV / Escritura ──
+          // Verifica quais documentos obrigatórios já estão no dossier.
+          const temDoc = (tipo) => pDocs.find(d => d.tipo === tipo) || null;
+          const estadoDoc = (doc) => {
+            if (!doc) return "falta";
+            const dias = diasValidade(doc.validade);
+            if (dias !== null && dias < 0) return "expirado";
+            if (dias !== null && dias < 30) return "a_expirar";
+            return "ok";
+          };
+          // Condições: terreno não precisa de licença de utilização;
+          // FTH só é obrigatória para imóveis construídos depois de 2004.
+          const temTerreno = pImoveis.some(im => im.tipoAtivo === "terreno");
+          const soTerrenos = pImoveis.length > 0 && pImoveis.every(im => im.tipoAtivo === "terreno");
+
+          const checklist = [
+            { tipo: "Caderneta Predial", nota: null },
+            { tipo: "Certidão Permanente", nota: "Validade de 6 meses" },
+            { tipo: "Certificado Energético", nota: soTerrenos ? "Não aplicável a terrenos" : null, naoAplicavel: soTerrenos },
+            { tipo: "Licença de Utilização", nota: soTerrenos ? "Não aplicável a terrenos" : "Não aplicável a terrenos nem a prédios anteriores a 1951", naoAplicavel: soTerrenos },
+            { tipo: "Ficha Técnica de Habitação", nota: "Apenas para imóveis construídos após 2004", condicional: true },
+            { tipo: "Documento de Identificação", nota: "CC do proprietário" },
+          ];
+
+          const cmi = temDoc("CMI");
+          const cmiEstado = estadoDoc(cmi);
+          const aplicaveis = checklist.filter(c => !c.naoAplicavel);
+          const reunidos = aplicaveis.filter(c => estadoDoc(temDoc(c.tipo)) === "ok").length;
+          const pctProgresso = aplicaveis.length > 0 ? (reunidos / aplicaveis.length) * 100 : 0;
+
+          const corEstado = { ok: G.green, a_expirar: G.gold1, expirado: G.red, falta: G.textDim };
+          const iconeEstado = { ok: "✓", a_expirar: "!", expirado: "✕", falta: "○" };
+
+          return (
+            <div className="card" style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1}}>Checklist CPCV / Escritura</h3>
+                <span style={{fontSize:12,color:G.textMuted}}>{reunidos} de {aplicaveis.length} reunidos</span>
+              </div>
+
+              <div style={{height:5,background:G.surface3,borderRadius:3,overflow:"hidden",marginBottom:16}}>
+                <div style={{height:"100%",width:`${pctProgresso}%`,background:pctProgresso===100?G.green:G.gold1,transition:"width .3s"}}/>
+              </div>
+
+              {/* CMI em destaque */}
+              <div onClick={()=>{if(!cmi){setDocForm(p=>({...p,tipo:"CMI"}));setDocMod(true);}}}
+                style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",marginBottom:14,borderRadius:8,
+                  background: cmi ? `${G.green}10` : `${G.red}0C`, border:`1px solid ${cmi?`${G.green}35`:`${G.red}35`}`, cursor: cmi?"default":"pointer"}}>
+                <div>
+                  <p style={{fontSize:13,fontWeight:600,color:cmi?G.green:G.red}}>
+                    {cmi ? "✓ CMI assinado" : "✕ CMI em falta"}
+                  </p>
+                  <p style={{fontSize:11,color:G.textDim,marginTop:2}}>
+                    {cmi
+                      ? (cmi.validade ? `Válido até ${new Date(cmi.validade).toLocaleDateString("pt-PT")}` : "Contrato de Mediação Imobiliária no dossier")
+                      : "Sem contrato de mediação — clica para carregar"}
+                  </p>
+                </div>
+                {cmi && cmiEstado !== "ok" && (
+                  <span style={{fontSize:11,color:corEstado[cmiEstado],fontWeight:500}}>
+                    {cmiEstado==="expirado" ? "⚠ Expirado" : "⚠ A expirar"}
+                  </span>
+                )}
+              </div>
+
+              {/* Restantes documentos */}
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                {checklist.map(c => {
+                  const doc = temDoc(c.tipo);
+                  const est = c.naoAplicavel ? "na" : estadoDoc(doc);
+                  const cor = c.naoAplicavel ? G.textDim : corEstado[est];
+                  return (
+                    <div key={c.tipo}
+                      onClick={()=>{if(!doc&&!c.naoAplicavel){setDocForm(p=>({...p,tipo:c.tipo}));setDocMod(true);}}}
+                      style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 4px",borderBottom:`1px solid ${G.border}`,
+                        cursor:(!doc&&!c.naoAplicavel)?"pointer":"default",opacity:c.naoAplicavel?0.45:1}}>
+                      <span style={{color:cor,fontSize:13,fontWeight:600,width:16,flexShrink:0,textAlign:"center"}}>
+                        {c.naoAplicavel ? "–" : iconeEstado[est]}
+                      </span>
+                      <div style={{minWidth:0,flex:1}}>
+                        <p style={{fontSize:13,color:doc?G.text:G.textMuted,textDecoration:c.naoAplicavel?"line-through":"none"}}>{c.tipo}</p>
+                        {c.nota && <p style={{fontSize:10.5,color:G.textDim,marginTop:1,fontStyle:"italic"}}>{c.nota}</p>}
+                      </div>
+                      {doc && doc.validade && (
+                        <span style={{fontSize:10.5,color:cor,flexShrink:0,paddingTop:2}}>
+                          {estadoDoc(doc)==="expirado" ? "Expirado" : `Até ${new Date(doc.validade).toLocaleDateString("pt-PT")}`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p style={{fontSize:10.5,color:G.textDim,marginTop:12,fontStyle:"italic"}}>
+                Clica num documento em falta para o carregar. Os documentos condicionais dependem das características do imóvel — confirma sempre com o notário antes da escritura.
+              </p>
+            </div>
+          );
+        })()}
+
         <div className="card">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <h3 style={{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",color:G.gold1}}>Documentos ({pDocs.length})</h3>
