@@ -47,26 +47,27 @@ export const handler = async (event) => {
   }
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-        "Referer": "https://www.google.com/",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "cross-site",
-        "Sec-Fetch-User": "?1",
-        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
-        "Upgrade-Insecure-Requests": "1",
-      },
-      redirect: "follow",
-    });
+    // Tenta primeiro directamente; se o portal bloquear (403/429), tenta via
+    // proxy público — o Idealista/Imovirtual bloqueiam por IP de datacenter,
+    // um proxy pode ter um IP diferente, não sinalizado.
+    const headersBrowser = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
+      "Referer": "https://www.google.com/",
+    };
+
+    let res = await fetch(url, { headers: headersBrowser, redirect: "follow" });
+
+    if (res.status === 403 || res.status === 429) {
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+        const resProxy = await fetch(proxyUrl, { headers: headersBrowser, redirect: "follow" });
+        if (resProxy.ok) res = resProxy;
+      } catch (e) {
+        console.error("proxy fallback falhou:", e.message);
+      }
+    }
 
     if (!res.ok) {
       return {
