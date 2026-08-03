@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento, dbVisitas } from "./db.js";
+import DossierInstitucional from "./DossierInstitucional";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -7956,6 +7957,7 @@ export default function App() {
 
  const nav=[
   {id:"dashboard",   label:"Início",       icon:"home"},
+  {id:"dossier",     label:"Dossier",      icon:"pdf"},
   {id:"angariações", label:"Angariações",  icon:"file"},
   {id:"imoveis",     label:"Imóveis",      icon:"building"},
   {id:"clientes",    label:"Clientes",     icon:"users"},
@@ -8001,7 +8003,8 @@ export default function App() {
           </aside>
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
-            {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
+            {page==="dossier"&&<DossierInstitucional mob={false}/>}	
+			{page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
@@ -8034,7 +8037,8 @@ export default function App() {
           {/* Main scrollable content */}
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
-            {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
+            {page==="dossier"&&<DossierInstitucional mob={true}/>}
+			{page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
