@@ -8,8 +8,8 @@ import React, { useState } from "react";
    Vazio = mostra espaço reservado.
    ═══════════════════════════════════════════════════════════ */
 
-const FOTO_CATIA = "";
-const FOTO_ANA   = "";
+const FOTO_CATIA = "/retrato-catia-barbosa.jpg";
+const FOTO_ANA   = "/retrato-ana-costa.jpg";
 
 /* Paleta do documento (independente da paleta do CRM) */
 const D = {
