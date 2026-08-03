@@ -8,8 +8,8 @@ import React, { useState } from "react";
    Vazio = mostra espaço reservado.
    ═══════════════════════════════════════════════════════════ */
 
-const FOTO_CATIA = "/retrato-catia-barbosa.jpg";
-const FOTO_ANA   = "/retrato-ana-costa.jpg";
+const FOTO_CATIA = "";
+const FOTO_ANA   = "";
 
 /* Paleta do documento (independente da paleta do CRM) */
 const D = {
@@ -118,8 +118,8 @@ const dossierCSS = `
   font-size:7px;letter-spacing:.3em;text-transform:uppercase;color:rgba(46,42,38,.4)}
 .dark .dsr-foot{color:rgba(162,154,143,.55)}
 
-/* ── Ecrãs pequenos ── */
-@media(max-width:860px){
+/* ── Ecrãs pequenos (nunca aplicar na impressão) ── */
+@media screen and (max-width:860px){
   .dsr-wrap{padding:14px 8px 40px}
   .dsr-sheet{width:100%;min-height:auto;padding:26px 22px;margin-bottom:14px}
   .dsr-cover{min-height:70vh}
@@ -141,11 +141,22 @@ const dossierCSS = `
   #root > div{display:block!important;height:auto!important;max-height:none!important;overflow:visible!important}
   #root > div > *{height:auto!important;max-height:none!important;overflow:visible!important}
   aside,.bottom-nav,.dsr-bar,.dsr-hint{display:none!important}
-  .dsr-wrap{background:#fff!important;padding:0!important;min-height:0!important;overflow:visible!important}
+  .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
+    width:210mm!important;min-height:0!important;overflow:visible!important}
   .dsr-sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;
-    margin:0!important;padding:24mm 22mm!important;box-shadow:none!important;page-break-after:always;break-after:page}
+    max-width:none!important;margin:0!important;padding:24mm 22mm!important;
+    box-shadow:none!important;page-break-after:always;break-after:page}
   .dsr-sheet:last-child{page-break-after:auto;break-after:auto}
-  .dsr-foot{position:absolute!important}
+  .dsr-founders,.dsr-steps{grid-template-columns:1fr 1fr!important}
+  .dsr-cover{min-height:0!important;height:100%!important}
+  .dsr-coverfoot{flex-direction:row!important;align-items:flex-end!important;gap:20px!important}
+  .dsr-closing{min-height:230mm!important}
+  .dsr-thesis p{font-size:40px!important}
+  .dsr-title{font-size:33px!important}
+  .dsr-num{font-size:88px!important;top:-30px!important}
+  .dsr-big{font-size:35px!important}
+  .dsr-foot{position:absolute!important;bottom:16mm!important;left:22mm!important;
+    right:22mm!important;margin-top:0!important}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
 `;
