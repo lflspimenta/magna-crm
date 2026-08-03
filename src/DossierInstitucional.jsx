@@ -118,6 +118,29 @@ const dossierCSS = `
   font-size:7px;letter-spacing:.3em;text-transform:uppercase;color:rgba(46,42,38,.4)}
 .dark .dsr-foot{color:rgba(162,154,143,.55)}
 
+/* ── Cartas de apresentação (só ecrã) ── */
+.dsr-emails{max-width:210mm;margin:34px auto 0;background:#161618;border:1px solid #2E2E33;border-radius:10px;padding:22px}
+.dsr-emails h3{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:400;color:#F0EDE6;margin-bottom:6px}
+.dsr-emails .sub{font-size:12px;color:#8A8880;line-height:1.6;margin-bottom:20px}
+.dsr-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+.dsr-fields label{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:#8A8880;display:block;margin-bottom:6px}
+.dsr-fields input,.dsr-fields select{width:100%;background:#1E1E21;border:1px solid #2E2E33;color:#F0EDE6;
+  font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 12px;outline:none;border-radius:6px}
+.dsr-fields input:focus,.dsr-fields select:focus{border-color:${D.gold}}
+.dsr-mail{border-top:1px solid #2E2E33;padding-top:18px;margin-top:18px}
+.dsr-mail:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.dsr-mailhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.dsr-mailname{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:${D.gold}}
+.dsr-mailwhen{font-size:11px;color:#5A5855;flex:1;min-width:160px}
+.dsr-copy{background:none;border:1px solid rgba(201,168,76,.45);color:${D.gold};
+  font-family:'DM Sans',sans-serif;font-size:11px;padding:7px 13px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.dsr-copy:hover{background:rgba(201,168,76,.1)}
+.dsr-copy.done{background:${D.gold};color:#12100E;border-color:${D.gold}}
+.dsr-subject{font-size:12px;color:#8A8880;margin-bottom:8px}
+.dsr-subject b{color:#F0EDE6;font-weight:400}
+.dsr-preview{background:#1E1E21;border:1px solid #2E2E33;border-radius:6px;padding:14px 16px;
+  font-size:12.5px;line-height:1.75;color:#CFC8BE;white-space:pre-wrap;max-height:190px;overflow-y:auto}
+
 /* ── Ecrãs pequenos (nunca aplicar na impressão) ── */
 @media screen and (max-width:860px){
   .dsr-wrap{padding:14px 8px 40px}
@@ -131,6 +154,8 @@ const dossierCSS = `
   .dsr-big{font-size:25px}
   .dsr-foot{position:static;margin-top:26px}
   .dsr-coverfoot{flex-direction:column;align-items:flex-start;gap:22px}
+  .dsr-fields{grid-template-columns:1fr}
+  .dsr-emails{padding:16px;border-radius:8px}
 }
 
 /* ── Impressão ── */
@@ -140,7 +165,7 @@ const dossierCSS = `
   #root{height:auto!important;overflow:visible!important;display:block!important}
   #root > div{display:block!important;height:auto!important;max-height:none!important;overflow:visible!important}
   #root > div > *{height:auto!important;max-height:none!important;overflow:visible!important}
-  aside,.bottom-nav,.dsr-bar,.dsr-hint{display:none!important}
+  aside,.bottom-nav,.dsr-bar,.dsr-hint,.dsr-emails{display:none!important}
   .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
     width:210mm!important;min-height:0!important;overflow:visible!important}
   .dsr-sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;
@@ -161,9 +186,105 @@ const dossierCSS = `
 }
 `;
 
+/* ─── Cartas de apresentação ───────────────────────────────── */
+const ASSINANTES = {
+  catia: { nome: "Cátia Barbosa", email: "catiabarbosa@magnagroup-re.com" },
+  ana:   { nome: "Ana Costa",     email: "anacosta@magnagroup-re.com" },
+};
+
+const assinatura = (a) =>
+  `Com os melhores cumprimentos,\n\n${a.nome}\nSócia Fundadora · Magna Group Real Estate\n${a.email}\nmagnagroup-re.com`;
+
+const CARTAS = [
+  {
+    id: "directa",
+    nome: "Directa e curta",
+    quando: "Primeiro contacto, quando não se conhece o projecto em curso.",
+    assunto: () => "Comercialização de empreendimentos — Magna Group",
+    corpo: (n, e, a) =>
+`Bom dia ${n},
+
+A Magna Group Real Estate trabalha comercialização de empreendimentos com promotores e grupos de construção. Envio o nosso dossier institucional em anexo.
+
+A diferença que costuma interessar mais a quem constrói: não começamos a vender no lançamento. Temos carteira própria de investidores nacionais e internacionais, e acesso a grupos e fundos que compram em bloco — o que permite colocar unidades antes da obra estar concluída.
+
+Se tiver um projecto em curso, em qualquer fase, disponho de uma hora para o analisar e dizer-lhe o que colocaríamos, a que preço e em que prazo. Sem compromisso.
+
+${assinatura(a)}`,
+  },
+  {
+    id: "ancorada",
+    nome: "Ancorada no projecto dele",
+    quando: "Quando se conhece o empreendimento. É a que tem melhor taxa de abertura.",
+    assunto: (n, e) => `${e} — uma nota sobre comercialização`,
+    corpo: (n, e, a) =>
+`Bom dia ${n},
+
+Acompanhei o ${e} e é por isso que lhe escrevo.
+
+A Magna Group Real Estate trabalha a comercialização de empreendimentos com promotores. O que nos distingue de uma mediadora convencional é a fase em que entramos: temos carteira própria de investidores e acesso directo a grupos e fundos, o que permite colocar unidades antes da conclusão da obra — e, quando o projecto o justifica, apresentá-lo para saída em bloco.
+
+Envio o dossier institucional em anexo. Se fizer sentido, gostava de perceber em que ponto está o ${e} e dizer-lhe com franqueza o que conseguiríamos fazer por ele.
+
+${assinatura(a)}`,
+  },
+  {
+    id: "dor",
+    nome: "Abre com a dor",
+    quando: "Para promotores com stock por escoar ou obra já concluída.",
+    assunto: () => "O custo de vender tarde",
+    corpo: (n, e, a) =>
+`Bom dia ${n},
+
+Um empreendimento raramente falha por não vender. Falha por vender tarde — com o juro da construção a correr, o capital preso e a margem a perder-se no desconto das últimas frações.
+
+É o problema que a Magna Group Real Estate trabalha. Entramos antes do lançamento, com carteira própria de investidores nacionais e internacionais e acesso a grupos e fundos que compram em bloco.
+
+O dossier em anexo explica como, em sete páginas.
+
+Se quiser testar-nos, traga-me um projecto na fase em que está — licenciamento, obra ou stock por escoar. Saímos dessa reunião com uma posição concreta sobre preço e prazo.
+
+${assinatura(a)}`,
+  },
+];
+
+/* Cópia com alternativa para clientes que não suportam a API moderna */
+const copiarTexto = async (texto) => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch (e) { /* segue para a alternativa */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = texto;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+};
+
 /* ─── Componente ───────────────────────────────────────────── */
 export default function DossierInstitucional({ mob = false }) {
   const [destinatario, setDestinatario] = useState("");
+  const [empreendimento, setEmpreendimento] = useState("");
+  const [assinante, setAssinante] = useState("catia");
+  const [copiado, setCopiado] = useState("");
+
+  const nomeVar = destinatario.trim() || "[Nome]";
+  const empVar  = empreendimento.trim() || "[empreendimento]";
+  const quemAssina = ASSINANTES[assinante];
+
+  const copiar = async (chave, texto) => {
+    const ok = await copiarTexto(texto);
+    setCopiado(ok ? chave : "erro-" + chave);
+    setTimeout(() => setCopiado(""), 2200);
+  };
 
   const Rule = () => <div className="dsr-rule" />;
 
@@ -575,6 +696,70 @@ export default function DossierInstitucional({ mob = false }) {
           </div>
           <div className="dsr-foot">Magna Group Real Estate · Portugal</div>
         </section>
+
+        {/* ══ CARTAS DE APRESENTAÇÃO — só ecrã ══ */}
+        <div className="dsr-emails">
+          <h3>Carta de apresentação</h3>
+          <p className="sub">
+            Escolha a variante conforme o promotor. Copie o texto, abra o seu email e cole —
+            depois anexe o PDF que gerou acima.
+          </p>
+
+          <div className="dsr-fields">
+            <div>
+              <label>Nome do destinatário</label>
+              <input
+                value={destinatario}
+                onChange={e => setDestinatario(e.target.value)}
+                placeholder="Ex: Sr. António Mota"
+              />
+            </div>
+            <div>
+              <label>Empreendimento</label>
+              <input
+                value={empreendimento}
+                onChange={e => setEmpreendimento(e.target.value)}
+                placeholder="Ex: Quinta das Oliveiras, Braga"
+              />
+            </div>
+            <div>
+              <label>Assinado por</label>
+              <select value={assinante} onChange={e => setAssinante(e.target.value)}>
+                <option value="catia">Cátia Barbosa</option>
+                <option value="ana">Ana Costa</option>
+              </select>
+            </div>
+          </div>
+
+          {CARTAS.map(c => {
+            const assunto = c.assunto(nomeVar, empVar);
+            const corpo   = c.corpo(nomeVar, empVar, quemAssina);
+            const kA = c.id + "-assunto";
+            const kC = c.id + "-corpo";
+            return (
+              <div className="dsr-mail" key={c.id}>
+                <div className="dsr-mailhead">
+                  <span className="dsr-mailname">{c.nome}</span>
+                  <span className="dsr-mailwhen">{c.quando}</span>
+                  <button
+                    className={"dsr-copy" + (copiado === kA ? " done" : "")}
+                    onClick={() => copiar(kA, assunto)}
+                  >
+                    {copiado === kA ? "Copiado" : copiado === "erro-" + kA ? "Falhou" : "Copiar assunto"}
+                  </button>
+                  <button
+                    className={"dsr-copy" + (copiado === kC ? " done" : "")}
+                    onClick={() => copiar(kC, corpo)}
+                  >
+                    {copiado === kC ? "Copiado" : copiado === "erro-" + kC ? "Falhou" : "Copiar mensagem"}
+                  </button>
+                </div>
+                <p className="dsr-subject">Assunto: <b>{assunto}</b></p>
+                <div className="dsr-preview">{corpo}</div>
+              </div>
+            );
+          })}
+        </div>
 
       </div>
     </>
