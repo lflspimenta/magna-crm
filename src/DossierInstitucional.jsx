@@ -386,10 +386,11 @@ export default function DossierInstitucional({ mob = false }) {
 
           <div className="dsr-claim">
             <h4>Assessoria jurídica dentro de casa</h4>
-            <p>Uma das fundadoras é advogada. Contratos-promessa, condições suspensivas, questões
-            registrais e documentação de compradores estrangeiros resolvem-se internamente. Menos
-            tempo entre reserva e escritura — e menos negócios a cair por atrito processual, que é
-            como se perde boa parte das vendas que já estavam ganhas.</p>
+            <p>Ana Costa, uma das fundadoras, é jurista com especialização em direito imobiliário.
+            Contratos-promessa, condições suspensivas, questões registrais e documentação de
+            compradores estrangeiros resolvem-se internamente. Menos tempo entre reserva e escritura —
+            e menos negócios a cair por atrito processual, que é como se perde boa parte das vendas
+            que já estavam ganhas.</p>
           </div>
 
           <div className="dsr-claim">
@@ -541,9 +542,11 @@ export default function DossierInstitucional({ mob = false }) {
               <div className="dsr-role">Sócia Fundadora</div>
               <div className="dsr-fname">Ana<br />Costa</div>
               <p className="dsr-fbio">
-                Formação em gestão e experiência em operações que exigem precisão: arrendamento
-                comercial, transacções com heranças, divisões e realojamentos. É quem garante que o
-                processo chega ao fim sem surpresas.
+                Formação em direito, com especialização em direito imobiliário. É a assessoria
+                jurídica que a Magna tem dentro de casa — contratos-promessa, condições suspensivas,
+                questões registrais e documentação de compradores estrangeiros. Trabalha as operações
+                que exigem precisão: arrendamento comercial, heranças, divisões e realojamentos.
+                É quem garante que o processo chega ao fim sem surpresas.
               </p>
               <div className="dsr-fmail">anacosta@magnagroup-re.com</div>
             </div>
