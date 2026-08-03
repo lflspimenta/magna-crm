@@ -3081,10 +3081,10 @@ const callClaudeDoc = async (base64Data, mediaType, prompt) => {
 // Prompts de extracção por tipo de documento
 const PROMPTS_EXTRACAO = {
   "Caderneta Predial": "Extrai desta caderneta predial os seguintes dados em JSON (usa null se não encontrares): {\"artigo_matricial\":\"...\",\"fracao\":\"...\",\"area_total\":\"...\",\"area_privativa\":\"...\",\"afetacao\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}],\"morada_predio\":\"...\",\"data_emissao\":\"AAAA-MM-DD\"}. A data de emissão costuma aparecer no rodapé ou cabeçalho do documento. Responde APENAS com o JSON, sem markdown nem explicações.",
-  "Certidão Permanente": "Extrai desta certidão permanente os seguintes dados em JSON (usa null se não encontrares): {\"descricao_predial\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"onus_encargos\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}]}. A validade é 6 meses após a data de emissão. Responde APENAS com o JSON.",
+  "Certidão Permanente": "Extrai desta certidão permanente os seguintes dados em JSON (usa null se não encontrares): {\"descricao_predial\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"onus_encargos\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}],\"morada_predio\":\"...\",\"area_total\":\"...\"}. A validade é 6 meses após a data de emissão. Responde APENAS com o JSON.",
   "Certificado Energético": "Extrai deste certificado energético os seguintes dados em JSON (usa null se não encontrares): {\"classe_energetica\":\"...\",\"numero_ce\":\"...\",\"validade\":\"AAAA-MM-DD\",\"morada\":\"...\"}. Responde APENAS com o JSON.",
   "CMI": "Extrai deste contrato de mediação imobiliária os seguintes dados em JSON (usa null se não encontrares): {\"proprietario\":\"...\",\"nif_proprietario\":\"...\",\"mediadora\":\"...\",\"prazo_meses\":0,\"data_assinatura\":\"AAAA-MM-DD\",\"validade\":\"AAAA-MM-DD\",\"comissao\":\"...\",\"regime\":\"...\"}. A validade é a data de assinatura mais o prazo. Responde APENAS com o JSON.",
-  "Documento de Identificação": "Extrai deste documento de identificação os seguintes dados em JSON (usa null se não encontrares): {\"nome_completo\":\"...\",\"nif\":\"...\",\"numero_documento\":\"...\",\"validade\":\"AAAA-MM-DD\",\"data_nascimento\":\"AAAA-MM-DD\"}. Responde APENAS com o JSON.",
+  "Documento de Identificação": "Extrai deste documento de identificação os seguintes dados em JSON (usa null se não encontrares): {\"nome_completo\":\"...\",\"nif\":\"...\",\"numero_documento\":\"...\",\"validade\":\"AAAA-MM-DD\",\"data_nascimento\":\"AAAA-MM-DD\",\"morada\":\"...\"}. A morada pode estar no verso do cartão. Responde APENAS com o JSON.",
   "Procuração": "Extrai desta procuração os seguintes dados em JSON (usa null se não encontrares): {\"outorgante\":\"...\",\"nif_outorgante\":\"...\",\"procurador\":\"...\",\"nif_procurador\":\"...\",\"poderes\":\"...\",\"validade\":\"AAAA-MM-DD\",\"data\":\"AAAA-MM-DD\"}. Responde APENAS com o JSON.",
   "Licença de Utilização": "Extrai desta licença de utilização os seguintes dados em JSON (usa null se não encontrares): {\"numero_licenca\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"camara_municipal\":\"...\",\"finalidade\":\"...\",\"morada\":\"...\"}. Responde APENAS com o JSON.",
   "Ficha Técnica de Habitação": "Extrai desta ficha técnica de habitação os seguintes dados em JSON (usa null se não encontrares): {\"numero_ficha\":\"...\",\"data\":\"AAAA-MM-DD\",\"morada\":\"...\",\"promotor\":\"...\"}. Responde APENAS com o JSON.",
@@ -3537,6 +3537,7 @@ const emptyU = {nome:"",email:"",password:"",cargo:"Consultor",role:"agente",ava
 const emptyAng = {
   // Proprietário
   propNome:"", propNif:"", propEmail:"", propTelefone:"", propMorada:"",
+  proprietario_id: null,
   // Imóvel
   tipo:"Apartamento", finalidade:"Venda", valor:"", valorRenda:"",
   area:"", quartos:"", casasBanho:"", descricao:"",
@@ -4021,6 +4022,64 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
   const [filtro, setFiltro]       = useState("Todos");
   const [importado, setImportado] = useState(false);
   const [detailAng, setDetailAng] = useState(null);
+  // Extracção de dados por upload de documentos (CC / Caderneta / Certidão)
+  const [docLoading, setDocLoading] = useState(null); // "cc" | "imovel" | null
+  const [docErro, setDocErro] = useState("");
+  const [docExtraido, setDocExtraido] = useState(null); // {origem, dados}
+  const [tipoDocImovel, setTipoDocImovel] = useState("Caderneta Predial");
+
+  // Analisa um documento carregado e devolve os dados extraídos para confirmação
+  const analisarDocAngariacao = async (file, origem, tipoDoc) => {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { setDocErro("Ficheiro demasiado grande (máx. 4MB)."); return; }
+    setDocLoading(origem); setDocErro(""); setDocExtraido(null);
+    try {
+      const prompt = PROMPTS_EXTRACAO[tipoDoc];
+      if (!prompt) throw new Error("Tipo de documento não suportado.");
+      const b64 = await fileToBase64(file);
+      const mediaType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const raw = await callClaudeDoc(b64, mediaType, prompt);
+      const dados = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      setDocExtraido({ origem, tipoDoc, dados });
+    } catch (e) {
+      console.error("extrair doc angariação:", e);
+      setDocErro("Não foi possível ler este documento. Preenche os campos manualmente.");
+    }
+    setDocLoading(null);
+  };
+
+  // Aplica os dados confirmados ao formulário
+  const aplicarDocExtraido = () => {
+    if (!docExtraido) return;
+    const { origem, dados } = docExtraido;
+    if (origem === "cc") {
+      setForm(p => ({
+        ...p,
+        propNome: dados.nome_completo || p.propNome,
+        propNif: dados.nif || p.propNif,
+        propMorada: dados.morada || p.propMorada,
+      }));
+    } else {
+      const titular = Array.isArray(dados.titulares) && dados.titulares[0] ? dados.titulares[0] : null;
+      setForm(p => ({
+        ...p,
+        area: dados.area_total || dados.area_privativa || p.area,
+        morada: dados.morada_predio || p.morada,
+        propNome: (!p.propNome && titular && titular.nome) ? titular.nome : p.propNome,
+        propNif: (!p.propNif && titular && titular.nif) ? titular.nif : p.propNif,
+      }));
+    }
+    setDocExtraido(null);
+  };
+
+  // Verificação cruzada de NIF entre a caderneta/certidão e o proprietário já introduzido
+  const nifDivergente = (() => {
+    if (!docExtraido || docExtraido.origem !== "imovel" || !form.propNif) return null;
+    const nifs = [];
+    if (Array.isArray(docExtraido.dados.titulares)) docExtraido.dados.titulares.forEach(t => t && t.nif && nifs.push(String(t.nif).replace(/\s/g, "")));
+    if (nifs.length === 0) return null;
+    return nifs.includes(String(form.propNif).replace(/\s/g, "")) ? null : nifs.join(", ");
+  })();
 
   // Carregar angariações da BD
   useEffect(() => {
@@ -4089,6 +4148,16 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
   const estadosBadge = ["Todos","Rascunho","Pendente","Assinado"];
 
   const nova = () => { setForm(emptyAng); setEditId(null); setSigProp(null); setSigAgente(null); setImportado(false); setStep("form"); };
+
+  // Se veio do módulo de Imóveis ("Criar Angariação"), abre já com os dados preenchidos
+  useEffect(() => {
+    const pre = window.__magnaAngariacaoPre;
+    if (!pre) return;
+    window.__magnaAngariacaoPre = null;
+    setForm({ ...emptyAng, ...pre });
+    setEditId(null); setSigProp(null); setSigAgente(null); setImportado(false);
+    setStep("form");
+  }, []);
   const editar = (a) => { setForm(a); setEditId(a.id); setSigProp(a.sigProp||null); setSigAgente(a.sigAgente||null); setStep("form"); };
 
   const guardar = async (irAssinar=false) => {
@@ -4219,9 +4288,54 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
         </div>
       </div>
 
+      {docErro && (
+        <div style={{background:`${G.red}10`,border:`1px solid ${G.red}40`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+          <p style={{fontSize:12,color:G.red}}>{docErro}</p>
+          <button onClick={()=>setDocErro("")} style={{background:"none",border:"none",cursor:"pointer",color:G.textDim,fontSize:16,lineHeight:1}}>×</button>
+        </div>
+      )}
+
+      {docExtraido && (
+        <div className="card" style={{marginBottom:16,border:`1px solid ${G.gold1}40`,background:`${G.gold1}08`}}>
+          <p style={{fontSize:11,letterSpacing:"0.12em",textTransform:"uppercase",color:G.gold1,marginBottom:10}}>
+            ✦ Dados extraídos de {docExtraido.tipoDoc} — confirma antes de aplicar
+          </p>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:6,marginBottom:12}}>
+            {Object.entries(docExtraido.dados).filter(([k,v])=>v!==null&&v!==""&&k!=="titulares").map(([k,v])=>(
+              <div key={k} style={{display:"flex",gap:8,fontSize:12}}>
+                <span style={{color:G.textDim,minWidth:120,textTransform:"capitalize"}}>{k.replace(/_/g," ")}:</span>
+                <span style={{color:G.text}}>{typeof v==="object"?JSON.stringify(v):String(v)}</span>
+              </div>
+            ))}
+            {Array.isArray(docExtraido.dados.titulares) && docExtraido.dados.titulares.length>0 && (
+              <div style={{display:"flex",gap:8,fontSize:12,gridColumn:mob?"1":"1/-1"}}>
+                <span style={{color:G.textDim,minWidth:120}}>Titulares:</span>
+                <span style={{color:G.text}}>{docExtraido.dados.titulares.map(t=>t&&`${t.nome||"?"}${t.nif?` (${t.nif})`:""}`).filter(Boolean).join("; ")}</span>
+              </div>
+            )}
+          </div>
+          {nifDivergente && (
+            <div style={{background:`${G.red}12`,border:`1px solid ${G.red}40`,borderRadius:6,padding:"8px 12px",marginBottom:12}}>
+              <p style={{fontSize:12,color:G.red}}>⚠ O NIF no documento ({nifDivergente}) difere do NIF do proprietário introduzido ({form.propNif}). Verifica antes de aplicar.</p>
+            </div>
+          )}
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button className="btn-ghost" onClick={()=>setDocExtraido(null)}>Descartar</button>
+            <button className="btn-gold" onClick={aplicarDocExtraido}>Preencher formulário</button>
+          </div>
+        </div>
+      )}
+
       {/* Proprietário */}
       <div className="card" style={{marginBottom:16}}>
-        <p style={{fontSize:12,color:G.gold1,fontWeight:500,marginBottom:14,textTransform:"uppercase",letterSpacing:".5px"}}>👤 Dados do Proprietário</p>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <p style={{fontSize:12,color:G.gold1,fontWeight:500,textTransform:"uppercase",letterSpacing:".5px"}}>👤 Dados do Proprietário</p>
+          <label style={{background:G.surface2,border:`1px solid ${G.gold1}40`,borderRadius:7,padding:"7px 12px",fontSize:11,color:G.gold1,cursor:docLoading?"wait":"pointer",display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'DM Sans',sans-serif"}}>
+            {docLoading==="cc" ? "✦ A ler documento..." : "📄 Importar do Cartão de Cidadão"}
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{display:"none"}} disabled={!!docLoading}
+              onChange={e=>{const f=e.target.files[0]; e.target.value=""; analisarDocAngariacao(f,"cc","Documento de Identificação");}}/>
+          </label>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12}}>
           <Field label="Nome completo *"><input value={form.propNome} onChange={e=>setForm(p=>({...p,propNome:e.target.value}))} placeholder="Ex: João Silva"/></Field>
           <Field label="NIF *"><input value={form.propNif} onChange={e=>setForm(p=>({...p,propNif:e.target.value}))} placeholder="123456789"/></Field>
@@ -4235,7 +4349,21 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
 
       {/* Imóvel */}
       <div className="card" style={{marginBottom:16}}>
-        <p style={{fontSize:12,color:G.gold1,fontWeight:500,marginBottom:14,textTransform:"uppercase",letterSpacing:".5px"}}>🏠 Dados do Imóvel</p>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <p style={{fontSize:12,color:G.gold1,fontWeight:500,textTransform:"uppercase",letterSpacing:".5px"}}>🏠 Dados do Imóvel</p>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <select value={tipoDocImovel} onChange={e=>setTipoDocImovel(e.target.value)} disabled={!!docLoading}
+              style={{background:G.surface2,border:`1px solid ${G.border}`,borderRadius:7,padding:"7px 10px",fontSize:11,color:G.textMuted,fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}}>
+              <option>Caderneta Predial</option>
+              <option>Certidão Permanente</option>
+            </select>
+            <label style={{background:G.surface2,border:`1px solid ${G.gold1}40`,borderRadius:7,padding:"7px 12px",fontSize:11,color:G.gold1,cursor:docLoading?"wait":"pointer",display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'DM Sans',sans-serif"}}>
+              {docLoading==="imovel" ? "✦ A ler documento..." : "📄 Importar documento"}
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{display:"none"}} disabled={!!docLoading}
+                onChange={e=>{const f=e.target.files[0]; e.target.value=""; analisarDocAngariacao(f,"imovel",tipoDocImovel);}}/>
+            </label>
+          </div>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12}}>
           <Field label="Tipo">
             <select value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))}>
@@ -5328,7 +5456,94 @@ const RegistarVisita = ({ imovel, clientes, user, onClose, mob }) => {
   );
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mob})=>{
+// ── Modal: associar proprietário a um imóvel ──
+const AssociarProprietario = ({ imovel, onClose, onAssociado }) => {
+  const [lista, setLista] = useState([]);
+  const [busca, setBusca] = useState("");
+  const [modo, setModo] = useState("escolher"); // escolher | novo
+  const [novo, setNovo] = useState({ nome:"", nif:"", email:"", telefone:"", morada:"" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!dbReady) return;
+    dbProprietarios.list().then(setLista).catch(e => console.error("carregar proprietários:", e));
+  }, []);
+
+  const associar = async (propId) => {
+    setSaving(true);
+    try {
+      await dbImoveis.update(imovel.id, { ...imovel, proprietario_id: propId });
+      onAssociado(propId);
+      onClose();
+    } catch (e) { alert("Erro ao associar: " + e.message); }
+    setSaving(false);
+  };
+
+  const criarEAssociar = async () => {
+    if (!novo.nome) { alert("O nome é obrigatório."); return; }
+    setSaving(true);
+    try {
+      const criado = await dbProprietarios.insert({ ...novo, estado: "Activo", notas: "" });
+      await dbImoveis.update(imovel.id, { ...imovel, proprietario_id: criado.id });
+      onAssociado(criado.id);
+      onClose();
+    } catch (e) { alert("Erro ao criar: " + e.message); }
+    setSaving(false);
+  };
+
+  const filtrados = lista.filter(p =>
+    p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.nif || "").includes(busca)
+  );
+
+  return (
+    <Modal title="Associar Proprietário" onClose={()=>!saving&&onClose()}>
+      <p style={{fontSize:12,color:G.textDim,marginBottom:16}}>{imovel.titulo}</p>
+
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <button onClick={()=>setModo("escolher")} className={modo==="escolher"?"btn-gold":"btn-ghost"} style={{flex:1,fontSize:12,padding:"9px 12px"}}>Escolher existente</button>
+        <button onClick={()=>setModo("novo")} className={modo==="novo"?"btn-gold":"btn-ghost"} style={{flex:1,fontSize:12,padding:"9px 12px"}}>Criar novo</button>
+      </div>
+
+      {modo === "escolher" ? (
+        <>
+          <div style={{position:"relative",marginBottom:12}}>
+            <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}><Ic n="search2" s={15} c={G.textDim}/></span>
+            <input placeholder="Pesquisar por nome ou NIF..." value={busca} onChange={e=>setBusca(e.target.value)} style={{paddingLeft:36}}/>
+          </div>
+          <div style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
+            {filtrados.map(p => (
+              <div key={p.id} onClick={()=>!saving&&associar(p.id)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:G.surface2,border:`1px solid ${G.border}`,borderRadius:8,cursor:saving?"wait":"pointer"}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:"#0E0E0F",flexShrink:0}}>{p.nome.charAt(0)}</div>
+                <div style={{minWidth:0,flex:1}}>
+                  <p style={{fontSize:14,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nome}</p>
+                  {p.nif && <span style={{fontSize:11,color:G.textDim}}>NIF {p.nif}</span>}
+                </div>
+              </div>
+            ))}
+            {filtrados.length === 0 && <p style={{fontSize:13,color:G.textDim,textAlign:"center",padding:"16px 0"}}>Nenhum proprietário encontrado. Usa "Criar novo".</p>}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div style={{gridColumn:"1/-1"}}><Field label="Nome completo *"><input value={novo.nome} onChange={e=>setNovo(p=>({...p,nome:e.target.value}))} placeholder="Nome do proprietário"/></Field></div>
+            <Field label="NIF"><input value={novo.nif} onChange={e=>setNovo(p=>({...p,nif:e.target.value}))} placeholder="123456789"/></Field>
+            <Field label="Telefone"><input value={novo.telefone} onChange={e=>setNovo(p=>({...p,telefone:e.target.value}))} placeholder="912 345 678"/></Field>
+            <div style={{gridColumn:"1/-1"}}><Field label="E-mail"><input value={novo.email} onChange={e=>setNovo(p=>({...p,email:e.target.value}))} placeholder="email@exemplo.pt"/></Field></div>
+            <div style={{gridColumn:"1/-1"}}><Field label="Morada"><input value={novo.morada} onChange={e=>setNovo(p=>({...p,morada:e.target.value}))} placeholder="Rua, número, código postal"/></Field></div>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
+            <button className="btn-ghost" disabled={saving} onClick={onClose}>Cancelar</button>
+            <button className="btn-gold" disabled={saving||!novo.nome} onClick={criarEAssociar}>{saving?"A criar...":"Criar e associar"}</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+};
+
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5400,6 +5615,23 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mo
         </div>
       </div>
 
+      {/* Proprietário */}
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{minWidth:0}}>
+            <p style={{fontSize:11,color:G.textDim,marginBottom:4,textTransform:"uppercase",letterSpacing:".3px"}}>Proprietário</p>
+            {imovel.proprietario_id ? (
+              <p style={{fontSize:14,fontWeight:500}}>{proprietarioNome || "Proprietário associado"}</p>
+            ) : (
+              <p style={{fontSize:13,color:G.textDim}}>Sem proprietário associado</p>
+            )}
+          </div>
+          <button className="btn-ghost" onClick={onAssociarProp} style={{padding:"7px 12px",fontSize:11,borderColor:`${G.gold1}40`,color:G.gold1}}>
+            {imovel.proprietario_id ? "Alterar" : "Associar proprietário"}
+          </button>
+        </div>
+      </div>
+
       {/* Especificações do Terreno */}
       {imovel.tipoAtivo === "terreno" && (
         <div style={{background:`${G.gold1}0A`,border:`1px solid ${G.gold1}30`,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
@@ -5430,6 +5662,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mo
       <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
         <button className="btn-gold" onClick={onMkt} style={{flex:mob?"1 1 100%":1}}><Ic n="spark" s={14} c="#0E0E0F"/>Avaliar com IA</button>
         <button className="btn-ghost" onClick={onVisita} style={{flex:mob?1:"none"}}><Ic n="calendar" s={14} c={G.green}/>Registar visita</button>
+        <button className="btn-ghost" onClick={onCriarAngariacao} style={{flex:mob?1:"none"}}><Ic n="file" s={14} c={G.textMuted}/>Criar Angariação</button>
         <button className="btn-ghost" onClick={()=>gerarFichaPDF(imovel)} style={{flex:mob?1:"none"}}><Ic n="pdf" s={14} c={G.gold1}/>Gerar PDF</button>
         <button className="btn-ghost" onClick={()=>partilharImovel(imovel)} style={{flex:mob?1:"none"}}><Ic n="share" s={14} c={G.blue}/>Partilhar</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
@@ -5442,7 +5675,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,mo
   );
 };
 
-const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
+const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [importMod,setImportMod]=useState(false);
@@ -5452,6 +5685,15 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
   const [detailIm,setDetailIm]=useState(null);
   const [visitaIm,setVisitaIm]=useState(null);
   const [dossierIm,setDossierIm]=useState(null);
+  const [assocIm,setAssocIm]=useState(null);
+  const [proprietarios,setProprietarios]=useState([]);
+
+  // Carregar proprietários para mostrar o nome no detalhe do imóvel
+  useEffect(()=>{
+    if(!dbReady) return;
+    dbProprietarios.list().then(setProprietarios).catch(e=>console.error("carregar proprietários:",e));
+  },[]);
+  const nomeProprietario=(pid)=>{const p=proprietarios.find(x=>String(x.id)===String(pid));return p?p.nome:null;};
   const [uploading,setUploading]=useState(false);
   const filtered=imoveis.filter(i=>i.titulo.toLowerCase().includes(search.toLowerCase())||i.bairro.toLowerCase().includes(search.toLowerCase()));
   const save=()=>{if(!form.titulo)return;const d={...form,status:(form.status||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""),valor:Number(form.valor),area:Number(form.area),quartos:Number(form.quartos),fotos:form.fotos||[]};if(editId)setImoveis(p=>p.map(i=>i.id===editId?{...d,id:editId}:i));else setImoveis(p=>[...p,{...d,id:Date.now()}]);setMod(false);setForm(emptyIm);setEditId(null);};
@@ -5678,7 +5920,26 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,mob})=>{
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} mob={mob}/>}
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
+        const prop=proprietarios.find(x=>String(x.id)===String(detailIm.proprietario_id));
+        window.__magnaAngariacaoPre={
+          imovelOrigemId: detailIm.id,
+          tipo: detailIm.tipo||"Apartamento", finalidade: detailIm.finalidade||"Venda",
+          valor: detailIm.valor||"", area: detailIm.area||"", quartos: detailIm.quartos||"",
+          casasBanho: detailIm.casasBanho||"", descricao: detailIm.descricao||"",
+          morada: detailIm.bairro||"", distrito: detailIm.distrito||"", concelho: detailIm.concelho||"",
+          freguesia: detailIm.freguesia||"", cidade: detailIm.cidade||"",
+          proprietario_id: detailIm.proprietario_id||null,
+          propNome: prop?prop.nome:"", propNif: prop?(prop.nif||""):"",
+          propEmail: prop?(prop.email||""):"", propTelefone: prop?(prop.telefone||""):"",
+          propMorada: prop?(prop.morada||""):"",
+        };
+        setDetailIm(null); if(setPage) setPage("angariações");
+      }} onDelete={async()=>{await eliminar(detailIm);setDetailIm(null);}} proprietarioNome={nomeProprietario(detailIm.proprietario_id)} mob={mob}/>}
+      {assocIm&&<AssociarProprietario imovel={assocIm} onClose={()=>setAssocIm(null)} onAssociado={async(pid)=>{
+        setImoveis(prev=>prev.map(i=>i.id===assocIm.id?{...i,proprietario_id:pid}:i));
+        try{ const lista=await dbProprietarios.list(); setProprietarios(lista); }catch(e){}
+      }}/>}
       {visitaIm&&<RegistarVisita imovel={visitaIm} clientes={clientes} user={user} onClose={()=>setVisitaIm(null)} mob={mob}/>}
       {dossierIm&&<GerarDossierInvestidor imovel={dossierIm} user={user} onClose={()=>setDossierIm(null)}/>}
     </div>
@@ -7640,7 +7901,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={false}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
@@ -7673,7 +7934,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
-            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} mob={true}/>}
+            {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
