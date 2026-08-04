@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { dbInteresses } from "./db.js";
+import { dbInteresses, dbTarefas } from "./db.js";
 
 /* ═══════════════════════════════════════════════════════════
    INTERESSES — ligação entre cliente e imóvel
@@ -168,7 +168,66 @@ const css = `
 .it-aviso{background:rgba(190,80,60,.09);border-left:2px solid ${C.bad};padding:10px 13px;
   border-radius:0 5px 5px 0;margin-bottom:12px}
 .it-aviso p{font-size:11.5px;line-height:1.65;color:#E8C4B8;margin:0}
+
+.it-datas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.it-datas div{flex:1;min-width:130px}
+.it-datas label{display:block;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:${C.gold};margin-bottom:5px}
+.it-datas input{width:100%;background:#1E1E21;border:1px solid ${C.line};color:${C.text};
+  font-family:'DM Sans',sans-serif;font-size:12.5px;padding:8px 10px;border-radius:5px;outline:none}
+.it-datas input:focus{border-color:${C.gold}}
+.it-tarefa{font-size:11px;color:${C.dim};line-height:1.6;margin-top:10px;padding-top:10px;border-top:1px solid ${C.line}}
 `;
+
+/* ── Tarefa única por processo ───────────────────────────────
+   Uma linha na Agenda por negócio reservado, actualizada
+   sempre que a checklist muda. Some quando fica completa.
+   ─────────────────────────────────────────────────────────── */
+async function sincronizarTarefa(it, imovelNome, clienteNome) {
+  const itens = it.checklist?.itens || [];
+  const falta = itens.filter(i => i.estado === "falta");
+  const proxima = it.dataCpcv || it.dataEscritura || null;
+
+  // Processo concluído ou sem itens em falta → fechar a tarefa
+  if (!itens.length || !falta.length || it.estado === "fechado" || it.estado === "recusado") {
+    if (it.tarefaId) {
+      try { await dbTarefas.update(it.tarefaId, { concluida: true }); } catch (e) {}
+    }
+    return it.tarefaId || null;
+  }
+
+  const faseCpcv = falta.filter(i => i.fase === "cpcv");
+  const fase = faseCpcv.length ? "CPCV" : "Escritura";
+  const hoje = new Date().toISOString().slice(0, 10);
+  // A data é quando a tarefa aparece na Agenda. Sem prazo marcado,
+  // aparece hoje — para não ficar fora do calendário.
+  const prazo = faseCpcv.length ? (it.dataCpcv || it.dataEscritura) : (it.dataEscritura || it.dataCpcv);
+  const data = prazo || hoje;
+
+  const fmt = (d) => d ? d.split("-").reverse().join("/") : null;
+  const linhaPrazo = prazo
+    ? `Prazo: ${fase} a ${fmt(prazo)}`
+    : "Sem data marcada — definir no processo";
+
+  const payload = {
+    titulo: `Documentação ${fase} — ${imovelNome || "imóvel"}`,
+    cliente: clienteNome || "",
+    data,
+    hora: "09:00",
+    tipo: "Documentos",
+    prioridade: falta.length > 4 ? "Alta" : "Normal",
+    concluida: false,
+    notas: `${linhaPrazo}\n\n${falta.length} em falta:\n` + falta.map(i => "· " + i.nome).join("\n"),
+  };
+
+  try {
+    if (it.tarefaId) {
+      await dbTarefas.update(it.tarefaId, payload);
+      return it.tarefaId;
+    }
+    const criada = await dbTarefas.insert(payload);
+    return criada?.id || null;
+  } catch (e) { return it.tarefaId || null; }
+}
 
 /* ═══════════════════════════════════════════════════════════ */
 export default function Interesses({ modo = "imovel", imovel, cliente, clientes = [], imoveis = [], user, mob = false }) {
@@ -223,6 +282,9 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
         extra.checklist = gerarChecklist(modo === "imovel" ? imovel : it.imovel, condicoes);
       }
       await dbInteresses.mudarEstado(it.id, estado, extra);
+      const base = { ...it, estado, ...(extra.checklist ? { checklist: extra.checklist } : {}) };
+      const tid = await sincronizarTarefa(base, nomeImovel(it), nomeCliente(it));
+      if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
       await carregarLista();
       if (estado === "reservado") setAberto(it.id);
     } catch (e) { setErro("Não foi possível actualizar: " + String(e?.message || e)); }
@@ -239,12 +301,29 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     catch (e) { setErro("Não foi possível remover: " + String(e?.message || e)); }
   };
 
+  const nomeImovel = (it) => modo === "imovel" ? (imovel?.titulo || "") : (it.imovel?.titulo || "");
+  const nomeCliente = (it) => modo === "imovel" ? (it.cliente?.nome || "") : (cliente?.nome || "");
+
   const alternaItem = async (it, itemId, novoEstado) => {
     const ck = it.checklist || {};
     const itens = (ck.itens || []).map(i => i.id === itemId ? { ...i, estado: novoEstado } : i);
     const nova = { ...ck, itens };
     setLista(l => l.map(x => x.id === it.id ? { ...x, checklist: nova } : x));
-    try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
+    try {
+      await dbInteresses.guardarChecklist(it.id, nova);
+      const tid = await sincronizarTarefa({ ...it, checklist: nova }, nomeImovel(it), nomeCliente(it));
+      if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
+    } catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
+  };
+
+  const guardarDatas = async (it, campo, valor) => {
+    setLista(l => l.map(x => x.id === it.id ? { ...x, [campo]: valor } : x));
+    try {
+      await dbInteresses.update(it.id, { [campo]: valor || null });
+      const actualizado = { ...it, [campo]: valor };
+      const tid = await sincronizarTarefa(actualizado, nomeImovel(it), nomeCliente(it));
+      if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
+    } catch (e) { setErro("Não foi possível guardar a data: " + String(e?.message || e)); }
   };
 
   const regerar = async (it) => {
@@ -272,6 +351,17 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
       <div className="it-chk">
         <div className="it-aviso">
           <p>Lista de apoio operacional. <b>Não substitui a validação jurídica de cada processo</b> — confirmar sempre com a Ana Costa.</p>
+        </div>
+
+        <div className="it-datas">
+          <div>
+            <label>Data prevista CPCV</label>
+            <input type="date" value={it.dataCpcv || ""} onChange={e => guardarDatas(it, "dataCpcv", e.target.value)} />
+          </div>
+          <div>
+            <label>Data prevista escritura</label>
+            <input type="date" value={it.dataEscritura || ""} onChange={e => guardarDatas(it, "dataEscritura", e.target.value)} />
+          </div>
         </div>
 
         <div className="it-cond">
@@ -311,6 +401,12 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
             </div>
           );
         })}
+
+        <p className="it-tarefa">
+          {it.tarefaId
+            ? "Há uma tarefa na Agenda para este processo — actualiza-se sozinha e fecha quando não faltar nada. Sem data marcada, aparece com a data de hoje."
+            : "Ao marcar o primeiro documento, cria-se uma tarefa na Agenda com o que está em falta."}
+        </p>
       </div>
     );
   };
