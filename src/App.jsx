@@ -4,6 +4,7 @@ import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadore
 import DossierInstitucional from "./DossierInstitucional";
 import Manual from "./Manual";
 import Interesses from "./Interesses";
+import Negocios from "./Negocios";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -6207,7 +6208,9 @@ const Proprietarios = ({ mob, userAtual }) => {
   const [detail, setDetail] = useState(null);
   const [docMod, setDocMod] = useState(false);
   const [bcftMod, setBcftMod] = useState(false);
-  const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
+  const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null, imovelId:"" });
+  // Documentos que pertencem à pessoa e não ao imóvel — servem todos os imóveis dela
+  const DOCS_DA_PESSOA = ["Documento de Identificação","Procuração"];
   const [uploading, setUploading] = useState(false);
   const [analisando, setAnalisando] = useState(false);
   const [extraidos, setExtraidos] = useState(null);
@@ -6298,18 +6301,24 @@ const Proprietarios = ({ mob, userAtual }) => {
 
   const guardarDoc = async () => {
     if (!docForm.file || !detail) return;
+    const meus = imoveisDe(detail.id);
+    const daPessoa = DOCS_DA_PESSOA.includes(docForm.tipo);
+    // Com um só imóvel, atribui sozinho. Com vários, é obrigatório escolher.
+    const imId = daPessoa ? null : (docForm.imovelId || (meus.length === 1 ? meus[0].id : null));
+    if (!daPessoa && meus.length > 1 && !imId) { alert("Escolha a que imóvel pertence este documento."); return; }
     setUploading(true);
     try {
       const url = await uploadDocumento(docForm.file, detail.id);
       const novo = await dbDocsProprietario.insert({
         proprietarioId: detail.id, tipo: docForm.tipo,
+        imovelId: imId,
         nomeFicheiro: docForm.file.name, url,
         validade: docForm.validade || null, notas: docForm.notas,
         dadosExtraidos: extraidos || null,
       });
       setDocs(d => [novo, ...d]);
       setDocMod(false);
-      setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
+      setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null, imovelId:"" });
       setExtraidos(null); setAvisoNif(null);
     } catch (e) { alert("Erro no upload: " + e.message); }
     setUploading(false);
@@ -6499,7 +6508,27 @@ const Proprietarios = ({ mob, userAtual }) => {
             <button className="btn-gold" onClick={()=>setDocMod(true)} style={{padding:"8px 14px",fontSize:11}}>+ Documento</button>
           </div>
           {pDocs.length === 0 && <p style={{fontSize:13,color:G.textDim}}>Nenhum documento. Adicione a caderneta, certidão, CMI e restantes documentos.</p>}
-          {pDocs.map(d => {
+          {(() => {
+            // Agrupar por imóvel. Documentos da pessoa e não atribuídos ficam à parte.
+            const grupos = [];
+            const daPessoa = pDocs.filter(d => DOCS_DA_PESSOA.includes(d.tipo));
+            if (daPessoa.length) grupos.push({ chave:"pessoa", titulo:"Do proprietário", nota:"Servem todos os imóveis", docs:daPessoa });
+            pImoveis.forEach(im => {
+              const seus = pDocs.filter(d => !DOCS_DA_PESSOA.includes(d.tipo) && String(d.imovelId) === String(im.id));
+              grupos.push({ chave:"im-"+im.id, titulo:im.titulo, nota:null, docs:seus, vazio:!seus.length });
+            });
+            const orfaos = pDocs.filter(d => !DOCS_DA_PESSOA.includes(d.tipo) && !d.imovelId);
+            if (orfaos.length) grupos.push({ chave:"orfaos", titulo:"Por atribuir", nota:"Carregados antes de haver separação por imóvel", docs:orfaos, aviso:true });
+
+            return grupos.map(g => (
+              <div key={g.chave} style={{marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:8,padding:"10px 0 6px",borderBottom:`1px solid ${g.aviso?`${G.gold1}40`:G.border}`,flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,letterSpacing:"0.12em",textTransform:"uppercase",color:g.aviso?G.gold1:G.textMuted}}>{g.titulo}</span>
+                  {g.nota && <span style={{fontSize:10,color:G.textDim}}>{g.nota}</span>}
+                  <span style={{marginLeft:"auto",fontSize:11,color:G.textDim}}>{g.docs.length}</span>
+                </div>
+                {g.vazio && <p style={{fontSize:12,color:G.textDim,padding:"8px 0"}}>Sem documentos para este imóvel.</p>}
+                {g.docs.map(d => {
             const dias = diasValidade(d.validade);
             return (
               <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${G.border}`,gap:10}}>
@@ -6521,6 +6550,9 @@ const Proprietarios = ({ mob, userAtual }) => {
               </div>
             );
           })}
+              </div>
+            ));
+          })()}
         </div>
 
         {docMod && (
@@ -6530,6 +6562,21 @@ const Proprietarios = ({ mob, userAtual }) => {
                 {TIPOS_DOC.map(t=><option key={t}>{t}</option>)}
               </select>
             </Field>
+            {!DOCS_DA_PESSOA.includes(docForm.tipo) && pImoveis.length > 1 && (
+              <Field label="A que imóvel pertence *">
+                <select value={docForm.imovelId} onChange={e=>setDocForm(p=>({...p,imovelId:e.target.value}))}>
+                  <option value="">— escolher imóvel —</option>
+                  {pImoveis.map(im=><option key={im.id} value={im.id}>{im.titulo}</option>)}
+                </select>
+              </Field>
+            )}
+            {!DOCS_DA_PESSOA.includes(docForm.tipo) && pImoveis.length === 1 && (
+              <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>Será associado a <strong style={{color:G.text}}>{pImoveis[0].titulo}</strong>.</p>
+            )}
+            {DOCS_DA_PESSOA.includes(docForm.tipo) && (
+              <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>Documento da pessoa — serve todos os imóveis deste proprietário.</p>
+            )}
+
             <Field label="Ficheiro (PDF ou imagem)">
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>{const f=e.target.files[0]||null;setDocForm(p=>({...p,file:f}));setExtraidos(null);setAvisoNif(null);if(f)analisarDoc(f,docForm.tipo);}}/>
             </Field>
@@ -7819,6 +7866,7 @@ export default function App() {
   );
 
   if (user) window.__magnaUser = user;
+  window.__magnaSetPage = setPage;
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
@@ -7828,6 +7876,7 @@ export default function App() {
   {id:"angariações", label:"Angariações",  icon:"file"},
   {id:"imoveis",     label:"Imóveis",      icon:"building"},
   {id:"clientes",    label:"Clientes",     icon:"users"},
+  {id:"negocios",    label:"Negócios",     icon:"chart"},
   {id:"proprietarios", label:"Proprietários", icon:"key"},
   {id:"funil",       label:"Funil",        icon:"chart"},
   {id:"agenda",      label:"Agenda",       icon:"calendar"},
@@ -7878,6 +7927,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={false}/>}
+            {page==="negocios"&&<Negocios mob={false} user={user}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
@@ -7913,6 +7963,7 @@ export default function App() {
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={true}/>}
+            {page==="negocios"&&<Negocios mob={true} user={user}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
