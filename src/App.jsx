@@ -7862,6 +7862,9 @@ export default function App() {
                   <p style={{fontSize:13,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome.split(" ")[0]}</p>
                   <p style={{fontSize:11,color:G.textDim}}>{user.cargo}</p>
                 </div>
+                <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:page==="utilizadores"?1:.6}} title="Utilizadores">
+                  <Ic n="users" s={16} c={page==="utilizadores"?G.gold1:G.textDim}/>
+                </button>
                 <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:.6}} title="Terminar sessão">
                   <Ic n="logout" s={16} c={G.red}/>
                 </button>
