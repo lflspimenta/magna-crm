@@ -43,12 +43,22 @@ const DOC_PARA_ITEM = {
 
 const caducado = (validade) => validade ? (new Date(validade) - new Date()) < 0 : false;
 
-export async function lerDocumentos(imovelId) {
-  if (!imovelId) return { porItem: {}, condicoes: {} };
+export async function lerDocumentos(imovel) {
+  // Os documentos são arquivados por proprietário. O imovel_id
+  // existe mas raramente vem preenchido — por isso a leitura é
+  // pelo proprietário, com o imóvel como filtro quando existir.
+  const imovelId = imovel?.id || null;
+  const propId = imovel?.proprietarioId || imovel?.proprietario_id || null;
+  if (!imovelId && !propId) return { porItem: {}, condicoes: {} };
   let docs = [];
   try {
     const todos = await dbDocsProprietario.list();
-    docs = (todos || []).filter(d => String(d.imovelId || d.imovel_id) === String(imovelId));
+    docs = (todos || []).filter(d => {
+      const dImovel = d.imovelId || d.imovel_id;
+      const dProp = d.proprietarioId || d.proprietario_id;
+      if (dImovel && imovelId) return String(dImovel) === String(imovelId);
+      return propId && String(dProp) === String(propId);
+    });
   } catch (e) { return { porItem: {}, condicoes: {} }; }
 
   const porItem = {};
@@ -75,6 +85,9 @@ export async function lerDocumentos(imovelId) {
     if (ano) condicoes.anoConstrucao = ano;
   });
 
+  // Inferências a partir do próprio imóvel
+  if ((imovel?.tipoAtivo || imovel?.tipo_ativo) === "terreno") condicoes.terreno = true;
+
   return { porItem, condicoes, total: docs.length };
 }
 
@@ -97,12 +110,14 @@ export function gerarChecklist(imovel = {}, condicoes = {}, arquivo = {}) {
   // ── CPCV ──
   add("cpcv", "caderneta", "Caderneta predial urbana", "Actualizada");
   add("cpcv", "certidao", "Certidão permanente do registo predial", "Válida à data");
-  if (ano && ano < 1951) {
+  if (condicoes.terreno) {
+    // Terreno não tem licença de utilização
+  } else if (ano && ano < 1951) {
     add("cpcv", "isencao_licenca", "Certidão de isenção de licença de utilização", "Construção anterior a 1951");
   } else {
     add("cpcv", "licenca_util", "Licença de utilização", "Emitida pela câmara");
   }
-  add("cpcv", "cert_energetico", "Certificado energético", "Obrigatório para promover e vender");
+  if (!condicoes.terreno) add("cpcv", "cert_energetico", "Certificado energético", "Obrigatório para promover e vender");
   if (ano && ano >= 2004) add("cpcv", "ficha_tecnica", "Ficha técnica da habitação", "Construção posterior a 2004");
   add("cpcv", "id_vendedor", "Identificação e NIF do vendedor");
   add("cpcv", "id_comprador", "Identificação e NIF do comprador");
@@ -269,6 +284,11 @@ const css = `
 .it-chk-na:hover{color:${C.dim}}
 .it-prog{height:2px;background:${C.line};border-radius:2px;overflow:hidden;margin:12px 0}
 .it-prog i{display:block;height:100%;background:${C.gold}}
+.it-chk-fase{display:flex;align-items:baseline;gap:10px}
+.it-fase-n{font-size:9.5px;letter-spacing:.1em;color:${C.dim};text-transform:none}
+.it-fase-espera{opacity:.55}
+.it-fase-espera:hover{opacity:1}
+.it-fase-nota{font-size:11px;color:${C.faint};line-height:1.6;margin:-4px 0 8px}
 
 .it-cond{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .it-cond button{background:none;border:1px solid ${C.line};color:${C.dim};font-family:'DM Sans',sans-serif;
@@ -295,7 +315,6 @@ const css = `
 async function sincronizarTarefa(it, imovelNome, clienteNome) {
   const itens = it.checklist?.itens || [];
   const falta = itens.filter(i => i.estado === "falta");
-  const proxima = it.dataCpcv || it.dataEscritura || null;
 
   // Processo concluído ou sem itens em falta → fechar a tarefa
   if (!itens.length || !falta.length || it.estado === "fechado" || it.estado === "recusado") {
@@ -305,12 +324,16 @@ async function sincronizarTarefa(it, imovelNome, clienteNome) {
     return it.tarefaId || null;
   }
 
-  const faseCpcv = falta.filter(i => i.fase === "cpcv");
-  const fase = faseCpcv.length ? "CPCV" : "Escritura";
+  // A tarefa trata de uma fase de cada vez. Enquanto o CPCV não
+  // estiver completo, não se pede nada da escritura — um IMT por
+  // pagar não é um documento em falta para o contrato-promessa.
+  const faltaCpcv = falta.filter(i => i.fase === "cpcv");
+  const emCurso = faltaCpcv.length ? faltaCpcv : falta.filter(i => i.fase === "escritura");
+  const fase = faltaCpcv.length ? "CPCV" : "Escritura";
   const hoje = new Date().toISOString().slice(0, 10);
   // A data é quando a tarefa aparece na Agenda. Sem prazo marcado,
   // aparece hoje — para não ficar fora do calendário.
-  const prazo = faseCpcv.length ? (it.dataCpcv || it.dataEscritura) : (it.dataEscritura || it.dataCpcv);
+  const prazo = faltaCpcv.length ? (it.dataCpcv || it.dataEscritura) : (it.dataEscritura || it.dataCpcv);
   const data = prazo || hoje;
 
   const fmt = (d) => d ? d.split("-").reverse().join("/") : null;
@@ -324,9 +347,9 @@ async function sincronizarTarefa(it, imovelNome, clienteNome) {
     data,
     hora: "09:00",
     tipo: "Documentos",
-    prioridade: falta.length > 4 ? "Alta" : "Normal",
+    prioridade: emCurso.length > 4 ? "Alta" : "Normal",
     concluida: false,
-    notas: `${linhaPrazo}\n\n${falta.length} em falta:\n` + falta.map(i => "· " + i.nome).join("\n"),
+    notas: `${linhaPrazo}\n\n${emCurso.length} em falta:\n` + emCurso.map(i => "· " + i.nome).join("\n"),
   };
 
   try {
@@ -351,9 +374,8 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
 
   // Ler o arquivo do imóvel para saber o que já existe
   useEffect(() => {
-    const alvo = modo === "imovel" ? imovel?.id : null;
-    if (!alvo) { setDocs({ porItem: {}, condicoes: {} }); return; }
-    lerDocumentos(alvo).then(r => {
+    if (modo !== "imovel" || !imovel) { setDocs({ porItem: {}, condicoes: {} }); return; }
+    lerDocumentos(imovel).then(r => {
       setDocs(r);
       setCondicoes(c => ({ ...r.condicoes, ...c }));
     });
@@ -407,7 +429,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
       const extra = {};
       if (estado === "reservado" && (!it.checklist || !it.checklist.itens)) {
         const alvo = modo === "imovel" ? imovel : it.imovel;
-        const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo?.id);
+        const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo);
         extra.checklist = gerarChecklist(alvo, { ...arquivo.condicoes, ...condicoes }, arquivo.porItem);
       }
       await dbInteresses.mudarEstado(it.id, estado, extra);
@@ -457,7 +479,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
 
   const regerar = async (it) => {
     const alvo = modo === "imovel" ? imovel : it.imovel;
-    const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo?.id);
+    const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo);
     const nova = gerarChecklist(alvo, { ...arquivo.condicoes, ...condicoes }, arquivo.porItem);
     const antigos = {};
     (it.checklist?.itens || []).forEach(i => { antigos[i.id] = i.estado; });
@@ -474,9 +496,15 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
   const Checklist = ({ it }) => {
     const itens = it.checklist?.itens || [];
     if (!itens.length) return null;
-    const feitos = itens.filter(i => i.estado === "ok" || i.estado === "na").length;
-    const pct = Math.round((feitos / itens.length) * 100);
-    const fases = [["cpcv", "Para o CPCV"], ["escritura", "Para a escritura"]];
+    const conta = (fase) => {
+      const desta = itens.filter(i => i.fase === fase);
+      const feitos = desta.filter(i => i.estado === "ok" || i.estado === "na").length;
+      return { total: desta.length, feitos, pct: desta.length ? Math.round((feitos / desta.length) * 100) : 0 };
+    };
+    const cpcv = conta("cpcv");
+    const escritura = conta("escritura");
+    const cpcvFechado = cpcv.total > 0 && cpcv.feitos === cpcv.total;
+    const fases = [["cpcv", "Para o CPCV", cpcv], ["escritura", "Para a escritura", escritura]];
 
     return (
       <div className="it-chk">
@@ -511,15 +539,18 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
           <button onClick={() => regerar(it)} style={{ borderColor: C.goldDim, color: C.gold }}>Actualizar lista</button>
         </div>
 
-        <div className="it-prog"><i style={{ width: pct + "%" }} /></div>
-        <p style={{ fontSize: 11, color: C.dim, marginBottom: 6 }}>{feitos} de {itens.length} — {pct}%</p>
-
-        {fases.map(([fase, titulo]) => {
+        {fases.map(([fase, titulo, c]) => {
           const desta = itens.filter(i => i.fase === fase);
           if (!desta.length) return null;
+          const espera = fase === "escritura" && !cpcvFechado;
           return (
-            <div key={fase}>
-              <div className="it-chk-fase">{titulo}</div>
+            <div key={fase} className={espera ? "it-fase-espera" : ""}>
+              <div className="it-chk-fase">
+                {titulo}
+                <span className="it-fase-n">{c.feitos} de {c.total}</span>
+              </div>
+              <div className="it-prog"><i style={{ width: c.pct + "%", background: c.pct === 100 ? C.ok : C.gold }} /></div>
+              {espera && <p className="it-fase-nota">Só depois do CPCV reunido. Nada aqui está em falta para o contrato-promessa.</p>}
               {desta.map(i => (
                 <div className="it-chk-item" key={i.id}>
                   <div
