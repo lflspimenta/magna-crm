@@ -72,17 +72,17 @@ export async function lerDocumentos(imovel) {
     }
   });
 
-  // Inferir condições a partir do que os documentos dizem
+  // Só se infere o que é fiável.
+  // A procura de palavras dentro do JSON extraído dava falsos
+  // positivos — os nomes dos campos entram na procura, e uma
+  // caderneta com um campo "condomínio" vazio ligava a condição.
+  // Hipoteca, condomínio, herança e arrendamento passam a ser
+  // marcados à mão pelo consultor.
   const condicoes = {};
   docs.forEach(d => {
     const ex = d.dadosExtraidos || d.dados_extraidos || {};
-    const texto = JSON.stringify(ex).toLowerCase();
-    if (texto.includes("hipotec")) condicoes.hipoteca = true;
-    if (texto.includes("fracç") || texto.includes("fracao") || texto.includes("fração") || texto.includes("condomin")) condicoes.condominio = true;
-    if (texto.includes("herdeir") || texto.includes("heranc") || texto.includes("herança")) condicoes.heranca = true;
-    if (texto.includes("arrendad") || texto.includes("inquilin")) condicoes.arrendado = true;
     const ano = Number(ex.anoConstrucao || ex.ano_construcao || ex.ano);
-    if (ano) condicoes.anoConstrucao = ano;
+    if (ano > 1800 && ano < 2100) condicoes.anoConstrucao = ano;
   });
 
   // Inferências a partir do próprio imóvel
@@ -280,8 +280,10 @@ const css = `
 .it-doc-mau{color:${C.warn}!important}
 .it-chk-t a{color:${C.gold};text-decoration:none}
 .it-arquivo{font-size:11px;color:${C.dim};line-height:1.6;margin-bottom:10px}
-.it-chk-na{background:none;border:none;color:${C.faint};font-size:10px;cursor:pointer;padding:2px 6px}
-.it-chk-na:hover{color:${C.dim}}
+.it-chk-na{background:none;border:1px solid transparent;color:${C.faint};font-size:9.5px;
+  cursor:pointer;padding:3px 8px;border-radius:10px;white-space:nowrap;opacity:.55}
+.it-chk-na:hover{color:${C.dim};border-color:${C.line};opacity:1}
+.it-chk-na.activo{color:${C.dim};border-color:${C.line};opacity:1}
 .it-prog{height:2px;background:${C.line};border-radius:2px;overflow:hidden;margin:12px 0}
 .it-prog i{display:block;height:100%;background:${C.gold}}
 .it-chk-fase{display:flex;align-items:baseline;gap:10px}
@@ -493,6 +495,33 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     return <span className="it-pt" style={{ color: e.cor, borderColor: e.cor }}>{e.nome}</span>;
   };
 
+  // Aplica o arquivo a uma checklist já gravada, sem apagar o que
+  // o consultor marcou à mão.
+  useEffect(() => {
+    if (modo !== "imovel" || !docs.porItem || !Object.keys(docs.porItem).length) return;
+    lista.forEach(async (it) => {
+      const itens = it.checklist?.itens;
+      if (!itens || !itens.length) return;
+      let mudou = false;
+      const novos = itens.map(i => {
+        const doc = docs.porItem[i.id];
+        if (!doc) return i;
+        const jaTem = i.arquivo && i.arquivo.doc === doc.nome;
+        if (jaTem) return i;
+        mudou = true;
+        return {
+          ...i,
+          estado: doc.caducado ? i.estado : (i.estado === "na" ? "na" : "ok"),
+          arquivo: { doc: doc.nome, url: doc.url, validade: doc.validade, caducado: doc.caducado },
+        };
+      });
+      if (!mudou) return;
+      const nova = { ...it.checklist, itens: novos };
+      setLista(l => l.map(x => x.id === it.id ? { ...x, checklist: nova } : x));
+      try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) {}
+    });
+  }, [docs, lista.length, modo]);
+
   const Checklist = ({ it }) => {
     const itens = it.checklist?.itens || [];
     if (!itens.length) return null;
@@ -528,6 +557,8 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
             <input type="date" value={it.dataEscritura || ""} onChange={e => guardarDatas(it, "dataEscritura", e.target.value)} />
           </div>
         </div>
+
+        <p className="it-arquivo">Marque as condições que se aplicam a este imóvel e carregue em Actualizar lista.</p>
 
         <div className="it-cond">
           {CONDICOES.map(c => (
@@ -568,8 +599,10 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
                       </small>
                     )}
                   </div>
-                  <button className="it-chk-na" onClick={() => alternaItem(it, i.id, i.estado === "na" ? "falta" : "na")}>
-                    {i.estado === "na" ? "repor" : "n/a"}
+                  <button className={"it-chk-na" + (i.estado === "na" ? " activo" : "")}
+                    title={i.estado === "na" ? "Voltar a exigir" : "Marcar como não aplicável"}
+                    onClick={() => alternaItem(it, i.id, i.estado === "na" ? "falta" : "na")}>
+                    {i.estado === "na" ? "não se aplica ↺" : "não se aplica"}
                   </button>
                 </div>
               ))}
