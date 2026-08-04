@@ -188,7 +188,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
         ? await dbInteresses.porImovel(idAlvo)
         : await dbInteresses.porCliente(idAlvo);
       setLista(r);
-    } catch (e) { setErro("Não foi possível carregar."); }
+    } catch (e) { setErro("Não foi possível carregar: " + String(e?.message || e)); }
     setCarregar(false);
   };
 
@@ -202,13 +202,18 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
   }, [imovel, clientes, jaLigados, modo]);
 
   const criar = async (outroId) => {
+    setErro("");
     try {
       const payload = modo === "imovel"
         ? { clienteId: outroId, imovelId: imovel.id }
         : { clienteId: cliente.id, imovelId: outroId };
-      await dbInteresses.create({ ...payload, estado: "sugerido", agente: user?.nome || user?.email || "" });
+      await dbInteresses.insert({ ...payload, estado: "sugerido", agente: user?.nome || user?.email || "" });
       await carregarLista();
-    } catch (e) { setErro("Já existe ou não foi possível criar."); }
+    } catch (e) {
+      const m = String(e?.message || e);
+      if (m.includes("interesses_par_unico") || m.includes("duplicate")) setErro("Este cliente já está associado a este imóvel.");
+      else setErro("Não foi possível associar: " + m);
+    }
   };
 
   const mudar = async (it, estado) => {
@@ -220,18 +225,18 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
       await dbInteresses.mudarEstado(it.id, estado, extra);
       await carregarLista();
       if (estado === "reservado") setAberto(it.id);
-    } catch (e) { setErro("Não foi possível actualizar."); }
+    } catch (e) { setErro("Não foi possível actualizar: " + String(e?.message || e)); }
   };
 
   const guardarMotivo = async (it, motivo) => {
     try { await dbInteresses.mudarEstado(it.id, "recusado", { motivo }); await carregarLista(); }
-    catch (e) { setErro("Não foi possível guardar."); }
+    catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
   };
 
   const apagar = async (it) => {
     if (!window.confirm("Remover esta associação?")) return;
     try { await dbInteresses.remove(it.id); await carregarLista(); }
-    catch (e) { setErro("Não foi possível remover."); }
+    catch (e) { setErro("Não foi possível remover: " + String(e?.message || e)); }
   };
 
   const alternaItem = async (it, itemId, novoEstado) => {
@@ -239,7 +244,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     const itens = (ck.itens || []).map(i => i.id === itemId ? { ...i, estado: novoEstado } : i);
     const nova = { ...ck, itens };
     setLista(l => l.map(x => x.id === it.id ? { ...x, checklist: nova } : x));
-    try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) { setErro("Não foi possível guardar."); }
+    try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
   };
 
   const regerar = async (it) => {
@@ -248,7 +253,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     (it.checklist?.itens || []).forEach(i => { antigos[i.id] = i.estado; });
     nova.itens = nova.itens.map(i => antigos[i.id] ? { ...i, estado: antigos[i.id] } : i);
     setLista(l => l.map(x => x.id === it.id ? { ...x, checklist: nova } : x));
-    try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) { setErro("Não foi possível guardar."); }
+    try { await dbInteresses.guardarChecklist(it.id, nova); } catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
   };
 
   const Pastilha = ({ estado }) => {
