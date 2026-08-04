@@ -2809,9 +2809,8 @@ const Logo = ({size="md"}) => {
 const LoginScreen = ({onLogin}) => {
   const [email,setEmail]   = useState("");
   const [pass,setPass]     = useState("");
-  const [apiKey,setAKey]   = useState("");
+  const [apiKey]           = useState("");
   const [showPass,setShow] = useState(false);
-  const [showKey,setShowK] = useState(false);
   const [loading,setLoad]  = useState(false);
   const [error,setError]   = useState("");
   const [mode,setMode]     = useState("login"); // login | recover | reset
@@ -2830,12 +2829,6 @@ const LoginScreen = ({onLogin}) => {
     try {
       if (!dbReady) throw new Error("Base de dados não configurada.");
       const u = await dbUtilizadores.signIn(email.trim(), pass);
-      const isNetlify = window.location.hostname.includes("netlify.app") ||
-                        (window.location.hostname !== "localhost" && !window.location.hostname.includes("claude.ai"));
-      if (!isNetlify && apiKey.trim() && !apiKey.trim().startsWith("sk-ant-")) {
-        setError("Chave de API inválida. Deve começar com sk-ant-");
-        setLoad(false); return;
-      }
       setApiKey(apiKey);
       onLogin(u);
     } catch (e) {
@@ -2930,30 +2923,6 @@ const LoginScreen = ({onLogin}) => {
             </div>
           )}
 
-          {/* API Key — só no modo login */}
-          {mode === "login" && (
-          <div className="login-field">
-            <label style={{display:"flex",alignItems:"center",gap:6}}>
-              Chave de API Anthropic
-              <span style={{background:`${G.purple}25`,color:G.purple,fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:600,letterSpacing:".5px"}}>IA</span>
-              <span style={{background:`${G.green}20`,color:G.green,fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:500}}>opcional no Netlify</span>
-            </label>
-            <div style={{position:"relative"}}>
-              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="spark" s={15} c={G.textDim}/></span>
-              <input className="login-input" style={{paddingLeft:42,paddingRight:44,fontFamily:"monospace",fontSize:12}}
-                type={showKey?"text":"password"} placeholder="sk-ant-api03-... (opcional se configurada no Netlify)"
-                value={apiKey} onChange={e=>{setAKey(e.target.value);setError("")}}
-                onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
-              <button onClick={()=>setShowK(!showKey)} style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}>
-                <Ic n={showKey?"eyeoff":"eye"} s={16} c={G.textDim}/>
-              </button>
-            </div>
-            <p style={{fontSize:11,color:G.textDim,marginTop:5}}>
-              No <strong style={{color:G.text}}>Netlify</strong>: define <code style={{background:G.surface3,padding:"1px 5px",borderRadius:3,fontSize:10}}>ANTHROPIC_API_KEY</code> em <em>Site Settings → Environment Variables</em> e deixa este campo vazio.
-              Ou obtém em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{color:G.gold1,textDecoration:"none"}}>console.anthropic.com</a>
-            </p>
-          </div>
-          )}
 
           {/* Mensagem informativa (sucesso) */}
           {info && <div style={{background:`${G.green}15`,border:`1px solid ${G.green}40`,borderRadius:8,padding:"11px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:8}}>
