@@ -6027,7 +6027,7 @@ const partilharCliente = async (c) => {
   else { try { await navigator.clipboard.writeText(texto); alert("✓ Contacto copiado!"); } catch { alert("Não foi possível partilhar."); } }
 };
 
-const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
+const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtual}) => {
   const c = cliente;
   const [bcftCli, setBcftCli] = useState(false);
   return (
@@ -6093,7 +6093,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
           {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
-      <Interesses modo="cliente" cliente={c} user={userAtual} mob={mob}/>
+      <Interesses modo="cliente" cliente={c} imoveis={imoveis} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -6641,7 +6641,7 @@ const Proprietarios = ({ mob, userAtual }) => {
   );
 };
 
-const Clientes=({clientes,setClientes,mob})=>{
+const Clientes=({clientes,setClientes,imoveis=[],user,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyCl);
@@ -6682,7 +6682,7 @@ const Clientes=({clientes,setClientes,mob})=>{
           </div>
         ))}
       </div>
-      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={window.__magnaUser}/>}
+      {detailCli && <ClienteDetalhe cliente={detailCli} imoveis={imoveis} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={user||window.__magnaUser}/>}
       
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -7877,7 +7877,7 @@ export default function App() {
             {page==="manual"&&<Manual mob={false} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
@@ -7912,7 +7912,7 @@ export default function App() {
             {page==="manual"&&<Manual mob={true} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}

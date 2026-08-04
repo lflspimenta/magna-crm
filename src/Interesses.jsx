@@ -115,6 +115,55 @@ export function cruzar(imovel, clientes = []) {
   }).filter(Boolean).sort((a, b) => b.pontos - a.pontos);
 }
 
+/* ── Cruzamento inverso ──────────────────────────────────────
+   Sugere imóveis da carteira compatíveis com um cliente.
+   Exclui o que não está disponível e limita a lista, porque
+   um cliente com orçamento alto encaixa em quase tudo.
+   ─────────────────────────────────────────────────────────── */
+const INDISPONIVEIS = ["vendido", "reservado", "arrendado", "indisponivel", "indisponível"];
+
+export function cruzarImoveis(cliente, imoveis = [], limite = 12) {
+  if (!cliente) return [];
+  const quer = (cliente.interesse || "").toLowerCase();
+  const querArrendar = quer.includes("arrend");
+  const orc = Number(cliente.orcamento) || 0;
+  const bairros = (cliente.bairros || "").toLowerCase();
+  const tipCli = Array.isArray(cliente.tipologia) ? cliente.tipologia.map(t => String(t).toLowerCase()) : [];
+
+  return imoveis.map(im => {
+    const status = (im.status || "").toLowerCase();
+    if (INDISPONIVEIS.some(x => status.includes(x))) return null;
+
+    const arrendamento = (im.finalidade || "").toLowerCase().includes("arrend");
+    if (arrendamento !== querArrendar) return null;
+
+    const valor = Number(im.valor) || 0;
+    let acima = false;
+    if (orc > 0 && valor > 0) {
+      if (valor > orc * 1.1) return null;
+      if (valor > orc) acima = true;
+    }
+
+    const zonas = [im.freguesia, im.concelho, im.distrito, im.bairro, im.cidade]
+      .filter(Boolean).map(z => z.toLowerCase());
+    const zonaBate = !bairros || zonas.some(z => bairros.includes(z) || z.includes(bairros.split(",")[0].trim()));
+
+    const tip = (im.tipologia || im.tipo || "").toLowerCase();
+    const tipBate = !tipCli.length || !tip || tipCli.some(t => tip.includes(t) || t.includes(tip));
+
+    let pontos = 0;
+    if (zonaBate) pontos += 2;
+    if (tipBate) pontos += 1;
+    if (!acima) pontos += 1;
+    if (im.destaque) pontos += 1;
+
+    if (pontos < 2) return null;
+    return { imovel: im, pontos, acima, zonaBate, tipBate };
+  }).filter(Boolean)
+    .sort((a, b) => b.pontos - a.pontos)
+    .slice(0, limite);
+}
+
 /* ── Estilos ─────────────────────────────────────────────── */
 const css = `
 .it-box{background:${C.surface};border:1px solid ${C.line};border-radius:10px;padding:16px;margin-top:16px}
@@ -256,9 +305,15 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
   const jaLigados = useMemo(() => new Set(lista.map(i => modo === "imovel" ? i.clienteId : i.imovelId)), [lista, modo]);
 
   const sugestoes = useMemo(() => {
-    if (modo !== "imovel") return [];
-    return cruzar(imovel, clientes).filter(s => !jaLigados.has(s.cliente.id));
-  }, [imovel, clientes, jaLigados, modo]);
+    if (modo === "imovel") {
+      return cruzar(imovel, clientes)
+        .filter(s => !jaLigados.has(s.cliente.id))
+        .map(s => ({ ...s, alvo: s.cliente }));
+    }
+    return cruzarImoveis(cliente, imoveis)
+      .filter(s => !jaLigados.has(s.imovel.id))
+      .map(s => ({ ...s, alvo: s.imovel }));
+  }, [imovel, cliente, clientes, imoveis, jaLigados, modo]);
 
   const criar = async (outroId) => {
     setErro("");
@@ -419,31 +474,38 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
       <div className="it-box">
         <div className="it-top">
           <span className="it-tit">{modo === "imovel" ? "Clientes interessados" : "Imóveis apresentados"}</span>
-          {modo === "imovel" && (
-            <button className={"it-btn" + (mostrarSug ? " cheio" : "")} onClick={() => setMostrarSug(v => !v)}>
-              {mostrarSug ? "Fechar sugestões" : `Sugerir da carteira${sugestoes.length ? " (" + sugestoes.length + ")" : ""}`}
-            </button>
-          )}
+          <button className={"it-btn" + (mostrarSug ? " cheio" : "")} onClick={() => setMostrarSug(v => !v)}>
+            {mostrarSug ? "Fechar sugestões" : `Sugerir da carteira${sugestoes.length ? " (" + sugestoes.length + ")" : ""}`}
+          </button>
         </div>
 
         {erro && <p style={{ fontSize: 12, color: C.bad, marginBottom: 10 }}>{erro}</p>}
 
-        {mostrarSug && modo === "imovel" && (
+        {mostrarSug && (
           <div className="it-sug">
             <h4>Compatíveis na carteira</h4>
             {sugestoes.length ? sugestoes.map(s => (
-              <div className="it-row" key={s.cliente.id}>
+              <div className="it-row" key={s.alvo.id}>
                 <span className="it-nome">
-                  {s.cliente.nome}
+                  {modo === "imovel" ? s.alvo.nome : s.alvo.titulo}
                   <small>
-                    {s.cliente.interesse} · {s.cliente.orcamento ? Number(s.cliente.orcamento).toLocaleString("pt-PT") + " €" : "sem orçamento"}
-                    {s.cliente.bairros ? " · " + s.cliente.bairros : ""}
+                    {modo === "imovel"
+                      ? `${s.alvo.interesse || ""} · ${s.alvo.orcamento ? Number(s.alvo.orcamento).toLocaleString("pt-PT") + " €" : "sem orçamento"}${s.alvo.bairros ? " · " + s.alvo.bairros : ""}`
+                      : `${s.alvo.valor ? Number(s.alvo.valor).toLocaleString("pt-PT") + " €" : "sem valor"}${s.alvo.tipo ? " · " + s.alvo.tipo : ""}${s.alvo.freguesia || s.alvo.concelho ? " · " + (s.alvo.freguesia || s.alvo.concelho) : ""}`}
                     {s.acima && <span className="it-flag"> · acima do orçamento</span>}
+                    {!s.zonaBate && <span className="it-flag"> · fora da zona pedida</span>}
+                    {!s.tipBate && <span className="it-flag"> · tipologia diferente</span>}
                   </small>
                 </span>
-                <button className="it-btn" onClick={() => criar(s.cliente.id)}>Associar</button>
+                <button className="it-btn" onClick={() => criar(s.alvo.id)}>Associar</button>
               </div>
-            )) : <p className="it-vazio">Nenhum cliente da carteira encaixa nos critérios deste imóvel.</p>}
+            )) : (
+              <p className="it-vazio">
+                {modo === "imovel"
+                  ? "Nenhum cliente da carteira encaixa nos critérios deste imóvel."
+                  : "Nenhum imóvel disponível encaixa no que este cliente procura."}
+              </p>
+            )}
           </div>
         )}
 
