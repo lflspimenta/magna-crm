@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { dbInteresses, dbTarefas } from "./db.js";
+import { dbInteresses, dbTarefas, dbDocsProprietario } from "./db.js";
 
 /* ═══════════════════════════════════════════════════════════
    INTERESSES — ligação entre cliente e imóvel
@@ -27,15 +27,72 @@ export const ESTADOS = [
 
 const MOTIVOS = ["Preço", "Estado do imóvel", "Zona", "Tipologia/áreas", "Financiamento", "Comprou outro", "Outro"];
 
+/* ── Documentos já em arquivo ────────────────────────────────
+   Cinco tipos de documento do arquivo do proprietário
+   correspondem a itens da checklist. Se já existirem, não se
+   pede outra vez — marca-se como feito, ou alerta-se se
+   estiver caducado.
+   ─────────────────────────────────────────────────────────── */
+const DOC_PARA_ITEM = {
+  "Caderneta Predial": "caderneta",
+  "Certidão Permanente": "certidao",
+  "Certificado Energético": "cert_energetico",
+  "Licença de Utilização": "licenca_util",
+  "Ficha Técnica de Habitação": "ficha_tecnica",
+};
+
+const caducado = (validade) => validade ? (new Date(validade) - new Date()) < 0 : false;
+
+export async function lerDocumentos(imovelId) {
+  if (!imovelId) return { porItem: {}, condicoes: {} };
+  let docs = [];
+  try {
+    const todos = await dbDocsProprietario.list();
+    docs = (todos || []).filter(d => String(d.imovelId || d.imovel_id) === String(imovelId));
+  } catch (e) { return { porItem: {}, condicoes: {} }; }
+
+  const porItem = {};
+  docs.forEach(d => {
+    const item = DOC_PARA_ITEM[d.tipo];
+    if (!item) return;
+    const mau = caducado(d.validade);
+    // Se houver mais de um do mesmo tipo, fica o válido
+    if (!porItem[item] || (porItem[item].caducado && !mau)) {
+      porItem[item] = { nome: d.nomeFicheiro || d.nome_ficheiro || d.tipo, url: d.url, validade: d.validade, caducado: mau };
+    }
+  });
+
+  // Inferir condições a partir do que os documentos dizem
+  const condicoes = {};
+  docs.forEach(d => {
+    const ex = d.dadosExtraidos || d.dados_extraidos || {};
+    const texto = JSON.stringify(ex).toLowerCase();
+    if (texto.includes("hipotec")) condicoes.hipoteca = true;
+    if (texto.includes("fracç") || texto.includes("fracao") || texto.includes("fração") || texto.includes("condomin")) condicoes.condominio = true;
+    if (texto.includes("herdeir") || texto.includes("heranc") || texto.includes("herança")) condicoes.heranca = true;
+    if (texto.includes("arrendad") || texto.includes("inquilin")) condicoes.arrendado = true;
+    const ano = Number(ex.anoConstrucao || ex.ano_construcao || ex.ano);
+    if (ano) condicoes.anoConstrucao = ano;
+  });
+
+  return { porItem, condicoes, total: docs.length };
+}
+
 /* ── Checklist documental ────────────────────────────────────
    Gerada conforme o imóvel. Validar com a Ana Costa antes de
    assumir como definitiva.
    ─────────────────────────────────────────────────────────── */
-export function gerarChecklist(imovel = {}, condicoes = {}) {
+export function gerarChecklist(imovel = {}, condicoes = {}, arquivo = {}) {
   const ano = Number(condicoes.anoConstrucao) || null;
   const itens = [];
 
-  const add = (fase, id, nome, nota) => itens.push({ fase, id, nome, nota: nota || "", estado: "falta" });
+  const add = (fase, id, nome, nota) => {
+    const doc = arquivo[id];
+    let estado = "falta", extra = null;
+    if (doc && !doc.caducado) { estado = "ok"; extra = { doc: doc.nome, url: doc.url, validade: doc.validade }; }
+    else if (doc && doc.caducado) { extra = { doc: doc.nome, url: doc.url, validade: doc.validade, caducado: true }; }
+    itens.push({ fase, id, nome, nota: nota || "", estado, arquivo: extra });
+  };
 
   // ── CPCV ──
   add("cpcv", "caderneta", "Caderneta predial urbana", "Actualizada");
@@ -204,6 +261,10 @@ const css = `
 .it-chk-t{flex:1;font-size:13px;color:${C.text};line-height:1.5}
 .it-chk-t.feito{color:${C.faint};text-decoration:line-through}
 .it-chk-t small{display:block;font-size:11px;color:${C.dim};margin-top:2px;text-decoration:none}
+.it-doc-ok{color:${C.ok}!important}
+.it-doc-mau{color:${C.warn}!important}
+.it-chk-t a{color:${C.gold};text-decoration:none}
+.it-arquivo{font-size:11px;color:${C.dim};line-height:1.6;margin-bottom:10px}
 .it-chk-na{background:none;border:none;color:${C.faint};font-size:10px;cursor:pointer;padding:2px 6px}
 .it-chk-na:hover{color:${C.dim}}
 .it-prog{height:2px;background:${C.line};border-radius:2px;overflow:hidden;margin:12px 0}
@@ -286,6 +347,17 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState(null);
   const [condicoes, setCondicoes] = useState({});
+  const [docs, setDocs] = useState({ porItem: {}, condicoes: {} });
+
+  // Ler o arquivo do imóvel para saber o que já existe
+  useEffect(() => {
+    const alvo = modo === "imovel" ? imovel?.id : null;
+    if (!alvo) { setDocs({ porItem: {}, condicoes: {} }); return; }
+    lerDocumentos(alvo).then(r => {
+      setDocs(r);
+      setCondicoes(c => ({ ...r.condicoes, ...c }));
+    });
+  }, [imovel?.id, modo]);
 
   const idAlvo = modo === "imovel" ? imovel?.id : cliente?.id;
 
@@ -334,7 +406,9 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     try {
       const extra = {};
       if (estado === "reservado" && (!it.checklist || !it.checklist.itens)) {
-        extra.checklist = gerarChecklist(modo === "imovel" ? imovel : it.imovel, condicoes);
+        const alvo = modo === "imovel" ? imovel : it.imovel;
+        const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo?.id);
+        extra.checklist = gerarChecklist(alvo, { ...arquivo.condicoes, ...condicoes }, arquivo.porItem);
       }
       await dbInteresses.mudarEstado(it.id, estado, extra);
       const base = { ...it, estado, ...(extra.checklist ? { checklist: extra.checklist } : {}) };
@@ -382,7 +456,9 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
   };
 
   const regerar = async (it) => {
-    const nova = gerarChecklist(modo === "imovel" ? imovel : it.imovel, condicoes);
+    const alvo = modo === "imovel" ? imovel : it.imovel;
+    const arquivo = modo === "imovel" ? docs : await lerDocumentos(alvo?.id);
+    const nova = gerarChecklist(alvo, { ...arquivo.condicoes, ...condicoes }, arquivo.porItem);
     const antigos = {};
     (it.checklist?.itens || []).forEach(i => { antigos[i.id] = i.estado; });
     nova.itens = nova.itens.map(i => antigos[i.id] ? { ...i, estado: antigos[i.id] } : i);
@@ -407,6 +483,12 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
         <div className="it-aviso">
           <p>Lista de apoio operacional. <b>Não substitui a validação jurídica de cada processo</b> — confirmar sempre com a Ana Costa.</p>
         </div>
+
+        {modo === "imovel" && docs.total > 0 && (
+          <p className="it-arquivo">
+            {Object.keys(docs.porItem).length} de {docs.total} documentos do arquivo deste imóvel encaixam na lista — já vêm marcados.
+          </p>
+        )}
 
         <div className="it-datas">
           <div>
@@ -447,6 +529,13 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
                   <div className={"it-chk-t" + (i.estado !== "falta" ? " feito" : "")}>
                     {i.nome}
                     {i.nota && <small>{i.nota}</small>}
+                    {i.arquivo && (
+                      <small className={i.arquivo.caducado ? "it-doc-mau" : "it-doc-ok"}>
+                        {i.arquivo.caducado ? "⚠ em arquivo mas caducado" : "✓ já no arquivo do imóvel"}
+                        {i.arquivo.validade ? " · validade " + String(i.arquivo.validade).split("-").reverse().join("/") : ""}
+                        {i.arquivo.url && <> · <a href={i.arquivo.url} target="_blank" rel="noreferrer">abrir</a></>}
+                      </small>
+                    )}
                   </div>
                   <button className="it-chk-na" onClick={() => alternaItem(it, i.id, i.estado === "na" ? "falta" : "na")}>
                     {i.estado === "na" ? "repor" : "n/a"}
