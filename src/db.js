@@ -18,7 +18,8 @@ const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','conclui
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
-const F_VISITAS = ['imovel_id','imovel_titulo','cliente_nome','cliente_nif','cliente_contacto','data','hora','agente_nome','notas','sig_cliente','sig_agente'];
+const F_VISITAS = ['imovel_id','imovel_titulo','cliente_id','interesse_id','cliente_nome','cliente_nif','cliente_contacto','data','hora','agente_nome','notas','sig_cliente','sig_agente'];
+const F_INTERESSES = ['cliente_id','imovel_id','estado','notas','motivo','agente','checklist'];
 const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado','atribuido_a'];
 const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado','atribuido_a'];
 const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado','atribuido_a'];
@@ -26,7 +27,8 @@ const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descrica
 const M_IMOVEIS = { casasBanho: 'casas_banho', tipoAtivo: 'tipo_ativo', servicoGestaoArrendamento: 'servico_gestao_arrendamento', servicoAlojamentoLocal: 'servico_alojamento_local', servicoPropertyCaretaker: 'servico_property_caretaker', servicoRequalificacao: 'servico_requalificacao', temProjetoAprovado: 'tem_projeto_aprovado', viabilidadeConstrutivaPip: 'viabilidade_construtiva_pip', infraestruturasBasicas: 'infraestruturas_basicas', avaliacaoIA: 'avaliacao_ia' };
 const M_ANG = { propNome: 'prop_nome', propNif: 'prop_nif', propEmail: 'prop_email', propTelefone: 'prop_telefone', propMorada: 'prop_morada', casasBanho: 'casas_banho', tipoMandato: 'tipo_mandato', comissaoFixa: 'comissao_fixa', dataInicio: 'data_inicio', sigProp: 'sig_prop', sigAgente: 'sig_agente' };
 const M_CLIENTES = { perfilCliente: 'perfil_cliente', requisitosEspecificos: 'requisitos_especificos' };
-const M_VISITAS = { imovelId: 'imovel_id', imovelTitulo: 'imovel_titulo', clienteNome: 'cliente_nome', clienteNif: 'cliente_nif', clienteContacto: 'cliente_contacto', agenteNome: 'agente_nome', sigCliente: 'sig_cliente', sigAgente: 'sig_agente' };
+const M_VISITAS = { imovelId: 'imovel_id', interesseId: 'interesse_id', clienteId: 'cliente_id', imovelTitulo: 'imovel_titulo', clienteNome: 'cliente_nome', clienteNif: 'cliente_nif', clienteContacto: 'cliente_contacto', agenteNome: 'agente_nome', sigCliente: 'sig_cliente', sigAgente: 'sig_agente' };
+const M_INTERESSES = { clienteId: 'cliente_id', imovelId: 'imovel_id' };
 const M_DOCS = { proprietarioId: 'proprietario_id', imovelId: 'imovel_id', nomeFicheiro: 'nome_ficheiro', dadosExtraidos: 'dados_extraidos' };
 
 function makeCRUD(table, mapping, allowed, opts = {}) {
@@ -48,6 +50,30 @@ export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);
 export const dbDocsProprietario = makeCRUD('documentos_proprietario', M_DOCS, F_DOCS_PROP);
 export const dbVisitas = makeCRUD('visitas', M_VISITAS, F_VISITAS);
 export const dbLeadsGestao = makeCRUD('leads_gestao', {}, F_LEADS_GESTAO);
+
+// ── Interesses: ligação cliente ↔ imóvel ──────────────────────
+const _interessesCRUD = makeCRUD('interesses', M_INTERESSES, F_INTERESSES);
+export const dbInteresses = {
+  ..._interessesCRUD,
+  async porImovel(imovelId) {
+    const { data } = await supa.from('interesses').select('*, clientes(*)').eq('imovel_id', imovelId).order('created_at', { ascending: false });
+    return (data || []).map(r => ({ ...fromDB(r, M_INTERESSES), cliente: r.clientes || null }));
+  },
+  async porCliente(clienteId) {
+    const { data } = await supa.from('interesses').select('*, imoveis(*)').eq('cliente_id', clienteId).order('created_at', { ascending: false });
+    return (data || []).map(r => ({ ...fromDB(r, M_INTERESSES), imovel: r.imoveis || null }));
+  },
+  async mudarEstado(id, estado, extra = {}) {
+    const { data, error } = await supa.from('interesses').update({ estado, ...extra }).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return fromDB(data, M_INTERESSES);
+  },
+  async guardarChecklist(id, checklist) {
+    const { data, error } = await supa.from('interesses').update({ checklist }).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return fromDB(data, M_INTERESSES);
+  }
+};
 export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
 export const dbLeadsHabitar = makeCRUD('leads_habitar', {}, F_LEADS_HABITAR);
 
