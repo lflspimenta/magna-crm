@@ -690,6 +690,12 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
                     {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 )}
+                {["proposta", "reservado", "fechado"].includes(it.estado) && (
+                  <button className="it-btn" title="Abrir no ecrã de Negócios"
+                    onClick={() => { if (window.__magnaSetPage) window.__magnaSetPage("negocios"); }}>
+                    Abrir negócio →
+                  </button>
+                )}
                 {(it.estado === "reservado" || it.estado === "fechado") && (
                   <button className="it-btn" onClick={() => setAberto(a => a === it.id ? null : it.id)}>
                     {aberto === it.id ? "Fechar" : "Documentos"}

@@ -19,7 +19,7 @@ const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
 const F_VISITAS = ['imovel_id','imovel_titulo','cliente_id','interesse_id','cliente_nome','cliente_nif','cliente_contacto','data','hora','agente_nome','notas','sig_cliente','sig_agente'];
-const F_INTERESSES = ['cliente_id','imovel_id','estado','notas','motivo','agente','checklist','data_cpcv','data_escritura','tarefa_id'];
+const F_INTERESSES = ['cliente_id','imovel_id','estado','notas','motivo','agente','checklist','data_cpcv','data_escritura','tarefa_id','propostas'];
 const F_LEADS_GESTAO = ['nome','telefone','email','localizacao','tipologia','situacao_atual','modalidade','notas','estado','atribuido_a'];
 const F_LEADS_AQUISICAO = ['nome','telefone','email','zona_interesse','orcamento','finalidade','tipo_reuniao','notas','estado','atribuido_a'];
 const F_LEADS_HABITAR = ['nome','telefone','email','servico_interesse','descricao','notas','estado','atribuido_a'];
@@ -67,6 +67,10 @@ export const dbInteresses = {
     const { data, error } = await supa.from('interesses').update({ estado, ...extra }).eq('id', id).select().single();
     if (error) throw new Error(error.message);
     return fromDB(data, M_INTERESSES);
+  },
+  async negocios(estados = ['proposta','reservado','fechado']) {
+    const { data } = await supa.from('interesses').select('*, clientes(*), imoveis(*)').in('estado', estados).order('updated_at', { ascending: false });
+    return (data || []).map(r => ({ ...fromDB(r, M_INTERESSES), cliente: r.clientes || null, imovel: r.imoveis || null }));
   },
   async guardarChecklist(id, checklist) {
     const { data, error } = await supa.from('interesses').update({ checklist }).eq('id', id).select().single();
