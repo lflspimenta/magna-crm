@@ -3,6 +3,7 @@ import React from "react";
 import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento, dbVisitas } from "./db.js";
 import DossierInstitucional from "./DossierInstitucional";
 import Manual from "./Manual";
+import Interesses from "./Interesses";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -5540,7 +5541,7 @@ const AssociarProprietario = ({ imovel, onClose, onAssociado }) => {
   );
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,mob})=>{
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,clientes=[],userAtual,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5668,6 +5669,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,on
   	<Ic n="pdf" s={14} c="#0E0E0F"/> Dossier Investidor
 	</button>
       </div>
+      <Interesses modo="imovel" imovel={imovel} clientes={clientes} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -5917,7 +5919,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
+      {detailIm&&<ImovelDetalhe imovel={detailIm} clientes={clientes} userAtual={user} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
         const prop=proprietarios.find(x=>String(x.id)===String(detailIm.proprietario_id));
         window.__magnaAngariacaoPre={
           imovelOrigemId: detailIm.id,
@@ -6122,6 +6124,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
           {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
+      <Interesses modo="cliente" cliente={c} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -7899,7 +7902,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
             {page==="dossier"&&<DossierInstitucional mob={false}/>}
-			   {page==="manual"&&<Manual mob={false} user={user}/>}
+            {page==="manual"&&<Manual mob={false} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
@@ -7934,7 +7937,7 @@ export default function App() {
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
             {page==="dossier"&&<DossierInstitucional mob={true}/>}
-			  {page==="manual"&&<Manual mob={true} user={user}/>}
+            {page==="manual"&&<Manual mob={true} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
