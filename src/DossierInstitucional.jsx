@@ -163,32 +163,39 @@ const dossierCSS = `
   @page{size:A4;margin:0}
   html,body{height:auto!important;overflow:visible!important;background:#fff!important;margin:0!important;padding:0!important}
   #root{height:auto!important;overflow:visible!important;display:block!important}
-  /* Anula o layout de ecrã do CRM sem tocar nas folhas do dossier */
-  #root div:not(.dsr-sheet):not(.dsr-wrap):not(.dsr-sheet *){height:auto;max-height:none;overflow:visible}
+  /* Anula o layout de ecrã do CRM: sem isto o contentor corta e sai só a 1.ª página */
+  #root > div{display:block!important;height:auto!important;max-height:none!important;overflow:visible!important}
+  #root > div > *{height:auto!important;max-height:none!important;overflow:visible!important}
+  #root > div > * > *{height:auto!important;max-height:none!important;overflow:visible!important}
   aside,.bottom-nav,.dsr-bar,.dsr-hint,.dsr-emails{display:none!important}
 
-  .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
+  #root .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
     width:210mm!important;max-width:none!important;min-height:0!important;
     height:auto!important;overflow:visible!important;display:block!important}
 
-  /* Selector mais específico para vencer as regras genéricas acima */
-  .dsr-wrap .dsr-sheet{
-    width:210mm!important;height:297mm!important;min-height:297mm!important;max-height:297mm!important;
-    max-width:none!important;margin:0!important;padding:22mm 20mm!important;
-    box-shadow:none!important;overflow:hidden!important;
-    page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid}
-  .dsr-wrap .dsr-sheet:last-of-type{page-break-after:auto;break-after:auto}
+  /* Um id + duas classes: vence as regras genéricas acima, que têm id + tipo */
+  /* 292mm e não 297: a folha tem de caber com folga dentro da página.
+     Com a altura exacta, qualquer fracção de milímetro faz a página
+     seguinte começar dentro da anterior. */
+  #root .dsr-wrap .dsr-sheet{
+    display:block!important;position:relative!important;
+    width:210mm!important;height:292mm!important;min-height:292mm!important;max-height:292mm!important;
+    max-width:none!important;margin:0!important;padding:20mm 20mm!important;
+    border:0!important;box-shadow:none!important;overflow:hidden!important;
+    page-break-after:always!important;break-after:page!important;
+    page-break-inside:avoid!important;break-inside:avoid!important}
+  #root .dsr-wrap .dsr-sheet:last-of-type{page-break-after:auto;break-after:auto}
 
   .dsr-founders,.dsr-steps{grid-template-columns:1fr 1fr!important}
 
   /* Capa: espalhar do topo ao fundo da página */
-  .dsr-wrap .dsr-cover{display:flex!important;flex-direction:column!important;
-    justify-content:space-between!important;min-height:253mm!important;height:253mm!important}
+  #root .dsr-wrap .dsr-cover{display:flex!important;flex-direction:column!important;
+    justify-content:space-between!important;min-height:252mm!important;height:252mm!important}
   .dsr-coverfoot{flex-direction:row!important;align-items:flex-end!important;gap:20px!important}
   .dsr-thesis{max-width:158mm!important}
   .dsr-thesis p{font-size:36px!important;line-height:1.2!important}
 
-  .dsr-wrap .dsr-closing{min-height:253mm!important;height:253mm!important;justify-content:center!important}
+  #root .dsr-wrap .dsr-closing{min-height:252mm!important;height:252mm!important;justify-content:center!important}
   .dsr-big{font-size:32px!important}
 
   .dsr-title{font-size:31px!important}
@@ -197,7 +204,7 @@ const dossierCSS = `
   .dsr-num{font-size:74px!important;top:-24px!important;left:-4px!important;opacity:.12!important}
   .dark .dsr-num{opacity:.16!important}
 
-  .dsr-foot{position:absolute!important;bottom:13mm!important;left:20mm!important;
+  .dsr-foot{position:absolute!important;bottom:11mm!important;left:20mm!important;
     right:20mm!important;margin-top:0!important}
 
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
