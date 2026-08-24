@@ -161,27 +161,45 @@ const dossierCSS = `
 /* ── Impressão ── */
 @media print{
   @page{size:A4;margin:0}
-  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important;margin:0!important;padding:0!important}
   #root{height:auto!important;overflow:visible!important;display:block!important}
-  #root > div{display:block!important;height:auto!important;max-height:none!important;overflow:visible!important}
-  #root > div > *{height:auto!important;max-height:none!important;overflow:visible!important}
+  /* Anula o layout de ecrã do CRM sem tocar nas folhas do dossier */
+  #root div:not(.dsr-sheet):not(.dsr-wrap):not(.dsr-sheet *){height:auto;max-height:none;overflow:visible}
   aside,.bottom-nav,.dsr-bar,.dsr-hint,.dsr-emails{display:none!important}
+
   .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
-    width:210mm!important;min-height:0!important;overflow:visible!important}
-  .dsr-sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;
-    max-width:none!important;margin:0!important;padding:24mm 22mm!important;
-    box-shadow:none!important;page-break-after:always;break-after:page}
-  .dsr-sheet:last-child{page-break-after:auto;break-after:auto}
+    width:210mm!important;max-width:none!important;min-height:0!important;
+    height:auto!important;overflow:visible!important;display:block!important}
+
+  /* Selector mais específico para vencer as regras genéricas acima */
+  .dsr-wrap .dsr-sheet{
+    width:210mm!important;height:297mm!important;min-height:297mm!important;max-height:297mm!important;
+    max-width:none!important;margin:0!important;padding:22mm 20mm!important;
+    box-shadow:none!important;overflow:hidden!important;
+    page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid}
+  .dsr-wrap .dsr-sheet:last-of-type{page-break-after:auto;break-after:auto}
+
   .dsr-founders,.dsr-steps{grid-template-columns:1fr 1fr!important}
-  .dsr-cover{min-height:0!important;height:100%!important}
+
+  /* Capa: espalhar do topo ao fundo da página */
+  .dsr-wrap .dsr-cover{display:flex!important;flex-direction:column!important;
+    justify-content:space-between!important;min-height:253mm!important;height:253mm!important}
   .dsr-coverfoot{flex-direction:row!important;align-items:flex-end!important;gap:20px!important}
-  .dsr-closing{min-height:230mm!important}
-  .dsr-thesis p{font-size:40px!important}
-  .dsr-title{font-size:33px!important}
-  .dsr-num{font-size:88px!important;top:-30px!important}
-  .dsr-big{font-size:35px!important}
-  .dsr-foot{position:absolute!important;bottom:16mm!important;left:22mm!important;
-    right:22mm!important;margin-top:0!important}
+  .dsr-thesis{max-width:158mm!important}
+  .dsr-thesis p{font-size:36px!important;line-height:1.2!important}
+
+  .dsr-wrap .dsr-closing{min-height:253mm!important;height:253mm!important;justify-content:center!important}
+  .dsr-big{font-size:32px!important}
+
+  .dsr-title{font-size:31px!important}
+  .dsr-lead{font-size:18px!important}
+  /* Número da secção mais discreto e afastado do título */
+  .dsr-num{font-size:74px!important;top:-24px!important;left:-4px!important;opacity:.12!important}
+  .dark .dsr-num{opacity:.16!important}
+
+  .dsr-foot{position:absolute!important;bottom:13mm!important;left:20mm!important;
+    right:20mm!important;margin-top:0!important}
+
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
 `;
@@ -607,9 +625,12 @@ export default function DossierInstitucional({ mob = false }) {
             As modalidades combinam-se. A maioria das parcerias começa em A ou C e evolui para D.
           </p>
 
-          <div style={{ marginTop: 48 }}>
-            <Head num="06" eyebrow="Método">Como trabalhamos</Head>
-          </div>
+          <Foot />
+        </section>
+
+        {/* ══ 06 ══ */}
+        <section className="dsr-sheet">
+          <Head num="06" eyebrow="Método">Como trabalhamos</Head>
 
           <div className="dsr-steps">
             <div>
