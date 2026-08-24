@@ -169,17 +169,21 @@ const dossierCSS = `
   #root > div > * > *{height:auto!important;max-height:none!important;overflow:visible!important}
   aside,.bottom-nav,.dsr-bar,.dsr-hint,.dsr-emails{display:none!important}
 
-  #root .dsr-wrap{background:#fff!important;padding:0!important;margin:0!important;
+  /* Sem isto, o fundo escuro do CRM aparece ao lado da folha */
+  #root,#root > div,#root > div > *,#root > div > * > *{background:#fff!important}
+
+  #root .dsr-wrap{background:#fff!important;padding:0!important;margin:0 auto!important;
     width:210mm!important;max-width:none!important;min-height:0!important;
     height:auto!important;overflow:visible!important;display:block!important}
 
   /* Um id + duas classes: vence as regras genéricas acima, que têm id + tipo */
-  /* 292mm e não 297: a folha tem de caber com folga dentro da página.
-     Com a altura exacta, qualquer fracção de milímetro faz a página
-     seguinte começar dentro da anterior. */
+  /* Folga mínima: 2px abaixo dos 297mm da página A4. Com a altura
+     exacta, qualquer arredondamento faz a página seguinte começar
+     dentro da anterior. Com 2px (~0,5mm) a faixa é imperceptível.
+     Se o corte voltar a falhar, subir para calc(297mm - 3mm). */
   #root .dsr-wrap .dsr-sheet{
     display:block!important;position:relative!important;
-    width:210mm!important;height:292mm!important;min-height:292mm!important;max-height:292mm!important;
+    width:210mm!important;height:calc(297mm - 2px)!important;min-height:calc(297mm - 2px)!important;max-height:calc(297mm - 2px)!important;
     max-width:none!important;margin:0!important;padding:20mm 20mm!important;
     border:0!important;box-shadow:none!important;overflow:hidden!important;
     page-break-after:always!important;break-after:page!important;
@@ -188,14 +192,16 @@ const dossierCSS = `
 
   .dsr-founders,.dsr-steps{grid-template-columns:1fr 1fr!important}
 
-  /* Capa: espalhar do topo ao fundo da página */
+  /* Capa: é a PRÓPRIA folha, não um bloco dentro dela.
+     Não definir aqui altura nenhuma — herda a da folha.
+     Definir encurtava a folha e deixava faixa branca em baixo. */
   #root .dsr-wrap .dsr-cover{display:flex!important;flex-direction:column!important;
-    justify-content:space-between!important;min-height:252mm!important;height:252mm!important}
+    justify-content:space-between!important}
   .dsr-coverfoot{flex-direction:row!important;align-items:flex-end!important;gap:20px!important}
   .dsr-thesis{max-width:158mm!important}
   .dsr-thesis p{font-size:36px!important;line-height:1.2!important}
 
-  #root .dsr-wrap .dsr-closing{min-height:252mm!important;height:252mm!important;justify-content:center!important}
+  #root .dsr-wrap .dsr-closing{min-height:100%!important;height:100%!important;justify-content:center!important}
   .dsr-big{font-size:32px!important}
 
   .dsr-title{font-size:31px!important}
