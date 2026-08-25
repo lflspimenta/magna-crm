@@ -8,6 +8,7 @@ import React, { useState } from "react";
    Vazio = mostra espaço reservado.
    ═══════════════════════════════════════════════════════════ */
 
+const LOGO       = "/magna-logo.png";
 const FOTO_CATIA = "/retrato-catia-barbosa.jpg";
 const FOTO_ANA   = "/retrato-ana-costa.jpg";
 
@@ -47,6 +48,9 @@ const dossierCSS = `
 .dsr-sheet.dark{background:${D.ink};color:${D.darkText}}
 
 .dsr-cover{display:flex;flex-direction:column;justify-content:space-between}
+.dsr-logo img{width:158px;height:auto;display:block}
+.dsr-logo small{display:block;font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:.34em;
+  color:${D.darkMuted};margin-top:14px;padding-left:2px}
 .dsr-mark{font-family:'Cormorant Garamond',serif;font-size:26px;letter-spacing:.34em;color:${D.gold};font-weight:400}
 .dsr-mark small{display:block;font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:.34em;color:${D.darkMuted};margin-top:10px;font-weight:400}
 .dsr-thesis{max-width:150mm}
@@ -146,6 +150,7 @@ const dossierCSS = `
   .dsr-wrap{padding:14px 8px 40px}
   .dsr-sheet{width:100%;min-height:auto;padding:26px 22px;margin-bottom:14px}
   .dsr-cover{min-height:70vh}
+  .dsr-logo img{width:120px}
   .dsr-thesis p{font-size:27px}
   .dsr-title{font-size:25px}
   .dsr-num{font-size:60px;top:-18px}
@@ -198,6 +203,7 @@ const dossierCSS = `
   #root .dsr-wrap .dsr-cover{display:flex!important;flex-direction:column!important;
     justify-content:space-between!important}
   .dsr-coverfoot{flex-direction:row!important;align-items:flex-end!important;gap:20px!important}
+  .dsr-logo img{width:46mm!important}
   .dsr-thesis{max-width:158mm!important}
   .dsr-thesis p{font-size:36px!important;line-height:1.2!important}
 
@@ -364,7 +370,11 @@ export default function DossierInstitucional({ mob = false }) {
 
         {/* ══ CAPA ══ */}
         <section className="dsr-sheet dark dsr-cover">
-          <div className="dsr-mark">MAGNA<small>GROUP REAL ESTATE · PORTUGAL</small></div>
+          <div className="dsr-logo">
+            {LOGO
+              ? <img src={LOGO} alt="Magna Group Real Estate" />
+              : <div className="dsr-mark">MAGNA<small>GROUP REAL ESTATE · PORTUGAL</small></div>}
+          </div>
 
           <div className="dsr-thesis">
             <Rule />
