@@ -1,10 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento, dbVisitas } from "./db.js";
-import DossierInstitucional from "./DossierInstitucional";
-import Manual from "./Manual";
-import Interesses from "./Interesses";
-import Negocios from "./Negocios";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -2810,8 +2806,9 @@ const Logo = ({size="md"}) => {
 const LoginScreen = ({onLogin}) => {
   const [email,setEmail]   = useState("");
   const [pass,setPass]     = useState("");
-  const [apiKey]           = useState("");
+  const [apiKey,setAKey]   = useState("");
   const [showPass,setShow] = useState(false);
+  const [showKey,setShowK] = useState(false);
   const [loading,setLoad]  = useState(false);
   const [error,setError]   = useState("");
   const [mode,setMode]     = useState("login"); // login | recover | reset
@@ -2830,6 +2827,12 @@ const LoginScreen = ({onLogin}) => {
     try {
       if (!dbReady) throw new Error("Base de dados não configurada.");
       const u = await dbUtilizadores.signIn(email.trim(), pass);
+      const isNetlify = window.location.hostname.includes("netlify.app") ||
+                        (window.location.hostname !== "localhost" && !window.location.hostname.includes("claude.ai"));
+      if (!isNetlify && apiKey.trim() && !apiKey.trim().startsWith("sk-ant-")) {
+        setError("Chave de API inválida. Deve começar com sk-ant-");
+        setLoad(false); return;
+      }
       setApiKey(apiKey);
       onLogin(u);
     } catch (e) {
@@ -2924,6 +2927,30 @@ const LoginScreen = ({onLogin}) => {
             </div>
           )}
 
+          {/* API Key — só no modo login */}
+          {mode === "login" && (
+          <div className="login-field">
+            <label style={{display:"flex",alignItems:"center",gap:6}}>
+              Chave de API Anthropic
+              <span style={{background:`${G.purple}25`,color:G.purple,fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:600,letterSpacing:".5px"}}>IA</span>
+              <span style={{background:`${G.green}20`,color:G.green,fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:500}}>opcional no Netlify</span>
+            </label>
+            <div style={{position:"relative"}}>
+              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><Ic n="spark" s={15} c={G.textDim}/></span>
+              <input className="login-input" style={{paddingLeft:42,paddingRight:44,fontFamily:"monospace",fontSize:12}}
+                type={showKey?"text":"password"} placeholder="sk-ant-api03-... (opcional se configurada no Netlify)"
+                value={apiKey} onChange={e=>{setAKey(e.target.value);setError("")}}
+                onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+              <button onClick={()=>setShowK(!showKey)} style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex"}}>
+                <Ic n={showKey?"eyeoff":"eye"} s={16} c={G.textDim}/>
+              </button>
+            </div>
+            <p style={{fontSize:11,color:G.textDim,marginTop:5}}>
+              No <strong style={{color:G.text}}>Netlify</strong>: define <code style={{background:G.surface3,padding:"1px 5px",borderRadius:3,fontSize:10}}>ANTHROPIC_API_KEY</code> em <em>Site Settings → Environment Variables</em> e deixa este campo vazio.
+              Ou obtém em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{color:G.gold1,textDecoration:"none"}}>console.anthropic.com</a>
+            </p>
+          </div>
+          )}
 
           {/* Mensagem informativa (sucesso) */}
           {info && <div style={{background:`${G.green}15`,border:`1px solid ${G.green}40`,borderRadius:8,padding:"11px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:8}}>
@@ -4189,6 +4216,11 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
           <p style={{color:G.textMuted,fontSize:12,marginTop:2}}>{lista.length} contratos</p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="btn-ghost" style={{padding:mob?"9px 12px":"10px 16px",fontSize:12,borderColor:`${G.gold1}50`,color:G.gold1}} onClick={() => gerarDossierConstrutor()}>
+            <Ic n="pdf" s={14} c={G.gold1}/>
+            {!mob && "Dossier Institucional"}
+          </button>
+          
           <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={nova}>
             <Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Nova":"Nova Angariação"}
           </button>
@@ -4714,42 +4746,29 @@ const ProspeccaoPanel = ({mob}) => {
     try {
       setStep("🌐 A pesquisar mercado imobiliário português...");
       const zona = loc.freguesia || loc.concelho;
-      const prompt = `És um especialista em mercado imobiliário em Portugal.
-Faz uma análise de prospecção de mercado detalhada para:
-- Tipo de imóvel: ${tipo}
-- Finalidade: ${finalidade}
-- Freguesia: ${loc.freguesia || "N/A"}
-- Concelho: ${loc.concelho}
-- Distrito: ${loc.distrito}
-- País: Portugal
+      const prompt = `Especialista em mercado imobiliário português. Analisa: ${tipo} para ${finalidade} em ${zona}, ${loc.concelho}, ${loc.distrito}.
 
-Usa web_search para pesquisar dados reais e actualizados:
-1. "${tipo} ${zona} ${loc.concelho} ${finalidade==="Venda"?"venda":"arrendamento"} preço 2025 2026 euros Portugal"
-2. "imóveis ${loc.concelho} ${loc.distrito} valorização mercado 2025"
-3. "Idealista Imovirtual ${tipo} ${zona} preço metro quadrado"
-
-Devolve APENAS este JSON válido:
+Faz no máximo 1 pesquisa web ("${tipo} ${zona} ${loc.concelho} preço m² ${finalidade==="Venda"?"venda":"arrendamento"}") e devolve APENAS este JSON, sem markdown:
 {
-  "precoM2Venda": <número em euros>,
-  "precoM2Locacao": <número em euros/mês>,
-  "ticketMedioVenda": <número em euros>,
-  "ticketMedioLocacao": <número em euros/mês>,
-  "ofertaAtual": <número estimado de imóveis disponíveis>,
+  "precoM2Venda": <euros/m²>,
+  "precoM2Locacao": <euros/m²/mês>,
+  "ticketMedioVenda": <euros>,
+  "ticketMedioLocacao": <euros/mês>,
+  "ofertaAtual": <nº estimado de imóveis disponíveis>,
   "demanda": "Alta" | "Média" | "Baixa",
-  "tendencia12m": <variação percentual últimos 12 meses>,
-  "tendencia6m": <variação percentual últimos 6 meses>,
-  "tempMedioVenda": <número médio de dias para vender>,
-  "perfilComprador": "<perfil típico do comprador/arrendatário nesta zona>",
-  "oportunidades": ["oportunidade1","oportunidade2","oportunidade3"],
-  "riscos": ["risco1","risco2"],
-  "melhorEpoca": "<melhor época do ano para transacionar>",
+  "tendencia12m": <variação % últimos 12 meses>,
+  "tendencia6m": <variação % últimos 6 meses>,
+  "tempMedioVenda": <dias médios para vender>,
+  "perfilComprador": "<perfil típico, 1 frase>",
+  "oportunidades": ["<oportunidade 1>","<oportunidade 2>"],
+  "riscos": ["<risco 1>"],
+  "melhorEpoca": "<melhor época para transaccionar>",
   "comparativoBairros": [
     {"bairro":"${zona}","precoM2":<número>,"variacao":<número>},
-    {"bairro":"<zona vizinha 1 no mesmo concelho>","precoM2":<número>,"variacao":<número>},
-    {"bairro":"<zona vizinha 2 no mesmo concelho>","precoM2":<número>,"variacao":<número>}
+    {"bairro":"<zona vizinha no mesmo concelho>","precoM2":<número>,"variacao":<número>}
   ],
-  "resumoMercado": "<análise de 3-4 frases sobre o mercado em ${zona}, ${loc.concelho} em português de Portugal>",
-  "score": <número de 0 a 10 indicando atractividade do mercado>,
+  "resumoMercado": "<2-3 frases sobre o mercado em ${zona}, em português de Portugal>",
+  "score": <0 a 10, atractividade do mercado>,
   "dataAnalise": "${new Date().toLocaleDateString("pt-PT")}"
 }`;
       setStep("🤖 A processar com IA...");
@@ -4757,7 +4776,14 @@ Devolve APENAS este JSON válido:
       const json = parseJSON(raw);
       if (!json||!json.precoM2Venda) throw new Error("A IA não devolveu dados suficientes. Tenta com outra localização.");
       setResult({...json, zona, ...loc, tipo, finalidade});
-    } catch(e) { setError(e.message||"Erro na prospecção."); }
+    } catch(e) {
+      const msg = e.message || "";
+      if (msg.includes("Unexpected token") || msg.includes("504") || msg.includes("502") || msg.includes("JSON")) {
+        setError("A análise demorou demasiado tempo e foi interrompida. Tenta novamente — se persistir, experimenta seleccionar apenas o concelho, sem freguesia.");
+      } else {
+        setError(msg || "Erro na prospecção.");
+      }
+    }
     finally { setLoad(false); setStep(""); }
   };
 
@@ -5511,7 +5537,7 @@ const AssociarProprietario = ({ imovel, onClose, onAssociado }) => {
   );
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,clientes=[],userAtual,mob})=>{
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5639,7 +5665,6 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,on
   	<Ic n="pdf" s={14} c="#0E0E0F"/> Dossier Investidor
 	</button>
       </div>
-      <Interesses modo="imovel" imovel={imovel} clientes={clientes} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -5889,7 +5914,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
       {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} clientes={clientes} userAtual={user} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
+      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
         const prop=proprietarios.find(x=>String(x.id)===String(detailIm.proprietario_id));
         window.__magnaAngariacaoPre={
           imovelOrigemId: detailIm.id,
@@ -6028,7 +6053,7 @@ const partilharCliente = async (c) => {
   else { try { await navigator.clipboard.writeText(texto); alert("✓ Contacto copiado!"); } catch { alert("Não foi possível partilhar."); } }
 };
 
-const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtual}) => {
+const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
   const c = cliente;
   const [bcftCli, setBcftCli] = useState(false);
   return (
@@ -6094,7 +6119,6 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtua
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
           {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
-      <Interesses modo="cliente" cliente={c} imoveis={imoveis} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -6208,9 +6232,7 @@ const Proprietarios = ({ mob, userAtual }) => {
   const [detail, setDetail] = useState(null);
   const [docMod, setDocMod] = useState(false);
   const [bcftMod, setBcftMod] = useState(false);
-  const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null, imovelId:"" });
-  // Documentos que pertencem à pessoa e não ao imóvel — servem todos os imóveis dela
-  const DOCS_DA_PESSOA = ["Documento de Identificação","Procuração"];
+  const [docForm, setDocForm] = useState({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
   const [uploading, setUploading] = useState(false);
   const [analisando, setAnalisando] = useState(false);
   const [extraidos, setExtraidos] = useState(null);
@@ -6301,24 +6323,18 @@ const Proprietarios = ({ mob, userAtual }) => {
 
   const guardarDoc = async () => {
     if (!docForm.file || !detail) return;
-    const meus = imoveisDe(detail.id);
-    const daPessoa = DOCS_DA_PESSOA.includes(docForm.tipo);
-    // Com um só imóvel, atribui sozinho. Com vários, é obrigatório escolher.
-    const imId = daPessoa ? null : (docForm.imovelId || (meus.length === 1 ? meus[0].id : null));
-    if (!daPessoa && meus.length > 1 && !imId) { alert("Escolha a que imóvel pertence este documento."); return; }
     setUploading(true);
     try {
       const url = await uploadDocumento(docForm.file, detail.id);
       const novo = await dbDocsProprietario.insert({
         proprietarioId: detail.id, tipo: docForm.tipo,
-        imovelId: imId,
         nomeFicheiro: docForm.file.name, url,
         validade: docForm.validade || null, notas: docForm.notas,
         dadosExtraidos: extraidos || null,
       });
       setDocs(d => [novo, ...d]);
       setDocMod(false);
-      setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null, imovelId:"" });
+      setDocForm({ tipo:"Caderneta Predial", validade:"", notas:"", file:null });
       setExtraidos(null); setAvisoNif(null);
     } catch (e) { alert("Erro no upload: " + e.message); }
     setUploading(false);
@@ -6508,27 +6524,7 @@ const Proprietarios = ({ mob, userAtual }) => {
             <button className="btn-gold" onClick={()=>setDocMod(true)} style={{padding:"8px 14px",fontSize:11}}>+ Documento</button>
           </div>
           {pDocs.length === 0 && <p style={{fontSize:13,color:G.textDim}}>Nenhum documento. Adicione a caderneta, certidão, CMI e restantes documentos.</p>}
-          {(() => {
-            // Agrupar por imóvel. Documentos da pessoa e não atribuídos ficam à parte.
-            const grupos = [];
-            const daPessoa = pDocs.filter(d => DOCS_DA_PESSOA.includes(d.tipo));
-            if (daPessoa.length) grupos.push({ chave:"pessoa", titulo:"Do proprietário", nota:"Servem todos os imóveis", docs:daPessoa });
-            pImoveis.forEach(im => {
-              const seus = pDocs.filter(d => !DOCS_DA_PESSOA.includes(d.tipo) && String(d.imovelId) === String(im.id));
-              grupos.push({ chave:"im-"+im.id, titulo:im.titulo, nota:null, docs:seus, vazio:!seus.length });
-            });
-            const orfaos = pDocs.filter(d => !DOCS_DA_PESSOA.includes(d.tipo) && !d.imovelId);
-            if (orfaos.length) grupos.push({ chave:"orfaos", titulo:"Por atribuir", nota:"Carregados antes de haver separação por imóvel", docs:orfaos, aviso:true });
-
-            return grupos.map(g => (
-              <div key={g.chave} style={{marginBottom:14}}>
-                <div style={{display:"flex",alignItems:"baseline",gap:8,padding:"10px 0 6px",borderBottom:`1px solid ${g.aviso?`${G.gold1}40`:G.border}`,flexWrap:"wrap"}}>
-                  <span style={{fontSize:11,letterSpacing:"0.12em",textTransform:"uppercase",color:g.aviso?G.gold1:G.textMuted}}>{g.titulo}</span>
-                  {g.nota && <span style={{fontSize:10,color:G.textDim}}>{g.nota}</span>}
-                  <span style={{marginLeft:"auto",fontSize:11,color:G.textDim}}>{g.docs.length}</span>
-                </div>
-                {g.vazio && <p style={{fontSize:12,color:G.textDim,padding:"8px 0"}}>Sem documentos para este imóvel.</p>}
-                {g.docs.map(d => {
+          {pDocs.map(d => {
             const dias = diasValidade(d.validade);
             return (
               <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${G.border}`,gap:10}}>
@@ -6550,9 +6546,6 @@ const Proprietarios = ({ mob, userAtual }) => {
               </div>
             );
           })}
-              </div>
-            ));
-          })()}
         </div>
 
         {docMod && (
@@ -6562,21 +6555,6 @@ const Proprietarios = ({ mob, userAtual }) => {
                 {TIPOS_DOC.map(t=><option key={t}>{t}</option>)}
               </select>
             </Field>
-            {!DOCS_DA_PESSOA.includes(docForm.tipo) && pImoveis.length > 1 && (
-              <Field label="A que imóvel pertence *">
-                <select value={docForm.imovelId} onChange={e=>setDocForm(p=>({...p,imovelId:e.target.value}))}>
-                  <option value="">— escolher imóvel —</option>
-                  {pImoveis.map(im=><option key={im.id} value={im.id}>{im.titulo}</option>)}
-                </select>
-              </Field>
-            )}
-            {!DOCS_DA_PESSOA.includes(docForm.tipo) && pImoveis.length === 1 && (
-              <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>Será associado a <strong style={{color:G.text}}>{pImoveis[0].titulo}</strong>.</p>
-            )}
-            {DOCS_DA_PESSOA.includes(docForm.tipo) && (
-              <p style={{fontSize:11,color:G.textDim,marginBottom:14}}>Documento da pessoa — serve todos os imóveis deste proprietário.</p>
-            )}
-
             <Field label="Ficheiro (PDF ou imagem)">
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>{const f=e.target.files[0]||null;setDocForm(p=>({...p,file:f}));setExtraidos(null);setAvisoNif(null);if(f)analisarDoc(f,docForm.tipo);}}/>
             </Field>
@@ -6688,7 +6666,7 @@ const Proprietarios = ({ mob, userAtual }) => {
   );
 };
 
-const Clientes=({clientes,setClientes,imoveis=[],user,mob})=>{
+const Clientes=({clientes,setClientes,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyCl);
@@ -6729,7 +6707,7 @@ const Clientes=({clientes,setClientes,imoveis=[],user,mob})=>{
           </div>
         ))}
       </div>
-      {detailCli && <ClienteDetalhe cliente={detailCli} imoveis={imoveis} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={user||window.__magnaUser}/>}
+      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={window.__magnaUser}/>}
       
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -7195,6 +7173,108 @@ const Dashboard=({imoveis,clientes,tarefas,user,setPage,mob})=>{
       </div>
     </div>
   );
+};
+// ==========================================
+// 1. DOSSIER INSTITUCIONAL (Construtores / Promotores - Versão Inovação & Captação)
+// ==========================================
+const gerarDossierConstrutor = () => {
+  const hoje = new Date().toLocaleDateString("pt-PT");
+  const dadosEmpresa = {
+    nomeEmpresa: "Magna Group Real Estate",
+    fundadoras: [
+      { nome: "Cátia Barbosa", cargo: "Managing Partner & Founder", bio: "Especialista em transações de ativos de alto rendimento, estruturação de produto e parcerias comerciais com promotores.", iniciais: "CB" },
+      { nome: "Ana Costa", cargo: "Managing Partner & Co-Founder", bio: "Foco total na qualificação de compradores institucionais, due diligence comercial e escoamento acelerado de empreendimentos.", iniciais: "AC" }
+    ],
+    contactoGeral: "geral@magnagroup.pt",
+    telefoneGeral: "+351 900 000 000"
+  };
+
+  const win = window.open("", "_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Inovação e Parceria Estratégica para Construtores — Magna Group</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:#1c1c1c;background:#fff;line-height:1.7}
+.page{max-width:820px;margin:0 auto;padding:50px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;padding-bottom:15px;border-bottom:2px solid #C9A84C}
+.logo-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#8B6914;letter-spacing:2px}
+.logo-sub{font-size:9px;color:#888;letter-spacing:3px;text-transform:uppercase}
+.badge{background:#fdf8ed;border:1px solid #e8d5a0;padding:6px 14px;border-radius:20px;font-size:11px;color:#8B6914;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.hero{background:linear-gradient(135deg,#111,#1f1a10);color:#fff;padding:34px;border-radius:10px;margin-bottom:26px;border-left:4px solid #C9A84C}
+.hero h1{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;margin-bottom:10px;color:#F0EDE6}
+.hero p{font-size:13.5px;color:#dcd6cd;line-height:1.6}
+h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:4px;margin:22px 0 10px}
+.founders-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.founder-card{background:#fcfbfa;padding:18px;border-radius:8px;border:1px solid #eee;text-align:center}
+.avatar-box{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#0E0E0F;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+.box{background:#fcfbfa;border-radius:8px;padding:15px;border:1px solid #eee}
+.box-title{font-family:'Cormorant Garamond',serif;font-size:14.5px;font-weight:600;color:#8B6914;margin-bottom:6px}
+.box-desc{font-size:11.5px;color:#555;line-height:1.5}
+.quote-box{background:#faf9f5;border-left:4px solid #C9A84C;padding:16px 18px;border-radius:0 8px 8px 0;font-size:13px;color:#444;line-height:1.6;font-style:italic;margin:18px 0}
+.footer{margin-top:35px;padding-top:15px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+</style></head><body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="logo-name">MAGNA</div>
+      <div class="logo-sub">Group Real Estate · Portugal</div>
+    </div>
+    <div class="badge">Inovação & Parceria Estratégica</div>
+  </div>
+
+  <div class="hero">
+    <h1>Inovação Comercial que Atrai Novos Compradores para o seu Empreendimento</h1>
+    <p>Não nos limitamos a colocar anúncios tradicionais. Na Magna Group, implementamos canais disruptivos de captação, campanhas digitais segmentadas por Inteligência Artificial e acesso direto a redes de investimento privado que aceleram as vendas e valorizam o seu projeto.</p>
+  </div>
+
+  <h2>Serviços Inovadores de Captação e Fecho</h2>
+  <div class="grid3">
+    <div class="box">
+      <div class="box-title">1. Marketing Preditivo por IA</div>
+      <div class="box-desc">Campanhas hiper-segmentadas direcionadas a perfis com alta intenção de compra e liquidez imediata, mapeados por dados comportamentais.</div>
+    </div>
+    <div class="box">
+      <div class="box-title">2. Roadshows Privados de Investimento</div>
+      <div class="box-desc">Apresentações exclusivas do seu empreendimento em formato "Closed-Door" a redes de investidores institucionais e *family offices*.</div>
+    </div>
+    <div class="box">
+      <div class="box-title">3. Dossiers de Oportunidade Dinâmicos</div>
+      <div class="box-desc">Relatórios financeiros automáticos e transparentes entregues a cada potencial comprador, destacando yields e margens de valorização instantânea.</div>
+    </div>
+  </div>
+
+  <h2>Liderança Executiva & Foco no Negócio</h2>
+  <div class="founders-grid">
+    <div class="founder-card">
+      <div class="avatar-box">${dadosEmpresa.fundadoras[0].iniciais}</div>
+      <p style="font-weight:600;font-size:14px;color:#1a1a1a">${dadosEmpresa.fundadoras[0].nome}</p>
+      <p style="font-size:11px;color:#8B6914;margin-bottom:6px;text-transform:uppercase">${dadosEmpresa.fundadoras[0].cargo}</p>
+      <p style="font-size:11.5px;color:#666">${dadosEmpresa.fundadoras[0].bio}</p>
+    </div>
+    <div class="founder-card">
+      <div class="avatar-box">${dadosEmpresa.fundadoras[1].iniciais}</div>
+      <p style="font-weight:600;font-size:14px;color:#1a1a1a">${dadosEmpresa.fundadoras[1].nome}</p>
+      <p style="font-size:11px;color:#8B6914;margin-bottom:6px;text-transform:uppercase">${dadosEmpresa.fundadoras[1].cargo}</p>
+      <p style="font-size:11.5px;color:#666">${dadosEmpresa.fundadoras[1].bio}</p>
+    </div>
+  </div>
+
+  <div class="quote-box">
+    "A nossa inovação traz clientes que o mercado tradicional não alcança. O construtor que trabalha connosco ganha novos canais de distribuição de produto e uma vantagem competitiva decisiva."
+  </div>
+
+  <div class="footer">
+    <div><strong>${dadosEmpresa.nomeEmpresa}</strong><br>Contacto institucional: ${dadosEmpresa.contactoGeral} · ${dadosEmpresa.telefoneGeral}</div>
+    <div style="text-align:right">Emitido em ${hoje}<br><em>Proposta de Parceria Comercial Confidencial</em></div>
+  </div>
+</div>
+<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar Dossier PDF</button>
+</body></html>`);
+  win.document.close();
 };
 
 // ==========================================
@@ -7866,17 +7946,13 @@ export default function App() {
   );
 
   if (user) window.__magnaUser = user;
-  window.__magnaSetPage = setPage;
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
   {id:"dashboard",   label:"Início",       icon:"home"},
-  {id:"dossier",     label:"Dossier",      icon:"pdf"},
-  {id:"manual",      label:"Manual",       icon:"file"},
   {id:"angariações", label:"Angariações",  icon:"file"},
   {id:"imoveis",     label:"Imóveis",      icon:"building"},
   {id:"clientes",    label:"Clientes",     icon:"users"},
-  {id:"negocios",    label:"Negócios",     icon:"chart"},
   {id:"proprietarios", label:"Proprietários", icon:"key"},
   {id:"funil",       label:"Funil",        icon:"chart"},
   {id:"agenda",      label:"Agenda",       icon:"calendar"},
@@ -7911,9 +7987,6 @@ export default function App() {
                   <p style={{fontSize:13,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome.split(" ")[0]}</p>
                   <p style={{fontSize:11,color:G.textDim}}>{user.cargo}</p>
                 </div>
-                <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:page==="utilizadores"?1:.6}} title="Utilizadores">
-                  <Ic n="users" s={16} c={page==="utilizadores"?G.gold1:G.textDim}/>
-                </button>
                 <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:.6}} title="Terminar sessão">
                   <Ic n="logout" s={16} c={G.red}/>
                 </button>
@@ -7922,12 +7995,9 @@ export default function App() {
           </aside>
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
-            {page==="dossier"&&<DossierInstitucional mob={false}/>}
-            {page==="manual"&&<Manual mob={false} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={false}/>}
-            {page==="negocios"&&<Negocios mob={false} user={user}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
@@ -7958,12 +8028,9 @@ export default function App() {
           {/* Main scrollable content */}
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
-            {page==="dossier"&&<DossierInstitucional mob={true}/>}
-            {page==="manual"&&<Manual mob={true} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={true}/>}
-            {page==="negocios"&&<Negocios mob={true} user={user}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
