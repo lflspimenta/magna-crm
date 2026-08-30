@@ -4728,6 +4728,179 @@ const LocSelector = ({distrito,concelho,freguesia,onChange}) => {
   );
 };
 
+// ══════════ PESQUISA DE MERCADO (anúncios no Idealista) ══════════
+// Converte "Vila Nova de Gaia" → "vila-nova-de-gaia" (formato dos URLs do Idealista)
+const slugIdealista = (txt) => (txt || "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().trim().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+
+const PesquisaMercado = ({ mob, onImportar }) => {
+  const [loc, setLoc] = useState({ distrito:"", concelho:"", freguesia:"" });
+  const [tipo, setTipo] = useState("Apartamento");
+  const [finalidade, setFinalidade] = useState("Venda");
+  const [tipologias, setTipologias] = useState([]);
+  const [precoMax, setPrecoMax] = useState("");
+  const [precoMin, setPrecoMin] = useState("");
+  const [areaMin, setAreaMin] = useState("");
+  const [loading, setLoad] = useState(false);
+  const [erro, setErro] = useState("");
+  const [res, setRes] = useState(null);
+
+  const podePesquisar = !!loc.distrito;
+
+  const toggleTip = (t) => setTipologias(p => p.includes(t) ? p.filter(x=>x!==t) : [...p, t]);
+
+  const pesquisar = async () => {
+    if (!podePesquisar) return;
+    setLoad(true); setErro(""); setRes(null);
+    try {
+      // O Idealista usa "-distrito" quando é pesquisa de distrito inteiro
+      const zona = loc.concelho ? slugIdealista(loc.concelho) : `${slugIdealista(loc.distrito)}-distrito`;
+      const r = await fetch("/api/search-listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ finalidade, tipo, zona, tipologias, precoMax, precoMin, areaMin }),
+      });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      if (!data.anuncios || data.anuncios.length === 0) {
+        setErro("Não foram encontrados anúncios com estes filtros. Tenta alargar a pesquisa.");
+        setRes({ ...data, anuncios: [] });
+      } else {
+        setRes(data);
+      }
+    } catch (e) {
+      setErro(e.message || "Erro na pesquisa.");
+    }
+    setLoad(false);
+  };
+
+  const eur = (v) => Number(v||0).toLocaleString("pt-PT") + " €";
+
+  return (
+    <div>
+      <div style={{marginBottom:mob?16:24}}>
+        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:28,fontWeight:600}}>Pesquisa de Mercado</h1>
+        <p style={{color:G.textMuted,fontSize:mob?11:13,marginTop:2}}>Anúncios no Idealista · o que existe no mercado para os teus clientes</p>
+      </div>
+
+      <div className="card" style={{marginBottom:16}}>
+        <p style={{fontSize:11,letterSpacing:"0.12em",textTransform:"uppercase",color:G.gold1,marginBottom:12}}>Localização</p>
+        <LocSelector distrito={loc.distrito} concelho={loc.concelho} freguesia={loc.freguesia} onChange={setLoc}/>
+        {loc.distrito && (
+          <p style={{fontSize:12,color:G.gold1,marginTop:8}}>
+            📍 {loc.concelho ? `${loc.concelho} · ${loc.distrito}` : `${loc.distrito} (distrito inteiro)`}
+            {loc.freguesia && <span style={{color:G.textDim}}> — a freguesia não é usada nesta pesquisa</span>}
+          </p>
+        )}
+
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12,marginTop:16}}>
+          <Field label="Tipo de imóvel">
+            <select value={tipo} onChange={e=>setTipo(e.target.value)}>
+              <option>Apartamento</option><option>Moradia</option><option>Terreno</option><option value="">Todos</option>
+            </select>
+          </Field>
+          <Field label="Finalidade">
+            <select value={finalidade} onChange={e=>setFinalidade(e.target.value)}>
+              <option>Venda</option><option>Arrendamento</option>
+            </select>
+          </Field>
+        </div>
+
+        {tipo !== "Terreno" && (
+          <div style={{marginTop:12}}>
+            <p style={{fontSize:12,color:G.textMuted,marginBottom:8}}>Tipologia</p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {["t0","t1","t2","t3","t4"].map(t => {
+                const activo = tipologias.includes(t);
+                return (
+                  <button key={t} type="button" onClick={()=>toggleTip(t)}
+                    style={{background:activo?G.gold1:"transparent",color:activo?"#0E0E0F":G.textMuted,
+                      border:`1px solid ${activo?G.gold1:G.border}`,borderRadius:6,padding:"6px 14px",
+                      fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:activo?600:400}}>
+                    {t.toUpperCase()}{t==="t4"?"+":""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:12,marginTop:12}}>
+          <Field label="Preço mínimo (€)"><input type="number" value={precoMin} onChange={e=>setPrecoMin(e.target.value)} placeholder="Ex: 100000"/></Field>
+          <Field label="Preço máximo (€)"><input type="number" value={precoMax} onChange={e=>setPrecoMax(e.target.value)} placeholder="Ex: 300000"/></Field>
+          {tipo !== "Terreno" && <Field label="Área mínima (m²)"><input type="number" value={areaMin} onChange={e=>setAreaMin(e.target.value)} placeholder="Ex: 80"/></Field>}
+        </div>
+
+        <button className="btn-gold" onClick={pesquisar} disabled={loading||!podePesquisar} style={{width:"100%",marginTop:16}}>
+          {loading ? "🔍 A pesquisar no Idealista..." : "🔍 Pesquisar Anúncios"}
+        </button>
+        {!podePesquisar && <p style={{fontSize:11,color:G.textDim,marginTop:8,textAlign:"center"}}>Selecciona pelo menos o distrito</p>}
+      </div>
+
+      {erro && (
+        <div style={{background:`${G.red}10`,border:`1px solid ${G.red}40`,borderRadius:8,padding:"12px 16px",marginBottom:16}}>
+          <p style={{fontSize:13,color:G.red}}>{erro}</p>
+        </div>
+      )}
+
+      {res && res.anuncios && res.anuncios.length > 0 && (
+        <>
+          <div className="card" style={{marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+            <div>
+              <p style={{fontSize:15,fontWeight:500}}>{res.anuncios.length} anúncios encontrados</p>
+              {res.total > res.anuncios.length && <p style={{fontSize:12,color:G.textDim,marginTop:2}}>de {res.total} disponíveis na zona</p>}
+            </div>
+            {res.precoMedioZona > 0 && (
+              <div style={{textAlign:"right"}}>
+                <p style={{fontSize:10,color:G.textDim,textTransform:"uppercase",letterSpacing:".5px"}}>Preço médio da zona</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:G.gold1}}>{res.precoMedioZona} €/m²</p>
+              </div>
+            )}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+            {res.anuncios.map(a => {
+              const abaixoMercado = res.precoMedioZona > 0 && a.precoM2 > 0 && a.precoM2 < res.precoMedioZona;
+              const desconto = abaixoMercado ? ((res.precoMedioZona - a.precoM2) / res.precoMedioZona * 100) : 0;
+              return (
+                <div key={a.id} className="card">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:10}}>
+                    <p style={{fontSize:14,fontWeight:500,lineHeight:1.4,flex:1}}>{a.titulo}</p>
+                    {desconto > 5 && (
+                      <span className="tag" style={{background:`${G.green}18`,color:G.green,flexShrink:0,fontWeight:600}}>
+                        −{desconto.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                  <div style={{display:"flex",gap:12,alignItems:"baseline",marginBottom:8,flexWrap:"wrap"}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:G.gold1}}>{eur(a.preco)}</span>
+                    {a.precoM2 > 0 && <span style={{fontSize:12,color:G.textDim}}>{a.precoM2} €/m²</span>}
+                  </div>
+                  <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+                    {a.quartos > 0 && <span className="tag" style={{background:G.surface3,color:G.textMuted}}>T{a.quartos}</span>}
+                    {a.area > 0 && <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{a.area} m²</span>}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <a href={a.url} target="_blank" rel="noreferrer" className="btn-ghost" style={{flex:1,textAlign:"center",textDecoration:"none",fontSize:12,padding:"8px 10px"}}>Ver anúncio</a>
+                    <button className="btn-gold" onClick={()=>onImportar && onImportar(a.url)} style={{flex:1,fontSize:12,padding:"8px 10px"}}>Importar</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {res.urlPesquisa && (
+            <p style={{fontSize:11,color:G.textDim,marginTop:16,textAlign:"center"}}>
+              <a href={res.urlPesquisa} target="_blank" rel="noreferrer" style={{color:G.textDim}}>Ver esta pesquisa no Idealista →</a>
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const ProspeccaoPanel = ({mob}) => {
   const [loc, setLoc]           = useState({distrito:"",concelho:"",freguesia:""});
   const [tipo,setTipo]           = useState("Apartamento");
@@ -4956,9 +5129,9 @@ const emptyIm={titulo:"",tipo:"Apartamento",tipoAtivo:"habitacao",finalidade:"Ve
 const emptyCl={nome:"",email:"",telefone:"",interesse:"Comprar",orcamento:"",temperatura:"Morno",bairros:"",tipologia:[],obs:"", perfilCliente:"comprador_tradicional", requisitosEspecificos:{}};
 
 // ── Import from Idealista / Imovirtual ────────────────────────
-const ImportModal = ({onClose, onImport}) => {
-  const [modo, setModo]       = useState("texto"); // "texto" | "link"
-  const [url, setUrl]         = useState("");
+const ImportModal = ({onClose, onImport, urlInicial}) => {
+  const [modo, setModo]       = useState(urlInicial ? "link" : "texto"); // "texto" | "link"
+  const [url, setUrl]         = useState(urlInicial || "");
   const [texto, setTexto]     = useState("");
   const [loading, setLoad]    = useState(false);
   const [step, setStep]       = useState("");
@@ -5673,6 +5846,16 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [importMod,setImportMod]=useState(false);
+  const [urlPreImport,setUrlPreImport]=useState(null);
+
+  // Se veio da Pesquisa de Mercado ("Importar"), abre o modal já com o link
+  useEffect(()=>{
+    const url=window.__magnaImportUrl;
+    if(!url) return;
+    window.__magnaImportUrl=null;
+    setUrlPreImport(url);
+    setImportMod(true);
+  },[]);
   const [form,setForm]=useState(emptyIm);
   const [editId,setEditId]=useState(null);
   const [mktIm,setMktIm]=useState(null);
@@ -5913,7 +6096,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
       )}
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
-      {importMod&&<ImportModal onClose={()=>setImportMod(false)} onImport={onImport}/>}
+      {importMod&&<ImportModal urlInicial={urlPreImport} onClose={()=>{setImportMod(false);setUrlPreImport(null);}} onImport={onImport}/>}
       {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
         const prop=proprietarios.find(x=>String(x.id)===String(detailIm.proprietario_id));
         window.__magnaAngariacaoPre={
@@ -7956,6 +8139,7 @@ export default function App() {
   {id:"proprietarios", label:"Proprietários", icon:"key"},
   {id:"funil",       label:"Funil",        icon:"chart"},
   {id:"agenda",      label:"Agenda",       icon:"calendar"},
+  {id:"mercado",     label:"Mercado",      icon:"search2"},
   {id:"prospeccao",  label:"IA",           icon:"spark"},
 ];
 
@@ -8001,6 +8185,7 @@ export default function App() {
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
+            {page==="mercado"&&<PesquisaMercado mob={false} onImportar={(url)=>{window.__magnaImportUrl=url;setPage("imoveis");}}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
@@ -8034,6 +8219,7 @@ export default function App() {
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
+            {page==="mercado"&&<PesquisaMercado mob={true} onImportar={(url)=>{window.__magnaImportUrl=url;setPage("imoveis");}}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}
             {page==="utilizadores"&&<GestaoUtilizadores currentUser={user}/>}
           </main>
