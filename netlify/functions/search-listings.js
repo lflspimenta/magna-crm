@@ -92,28 +92,91 @@ function extrairIdealista(html) {
 }
 
 // ── EXTRACÇÃO: IMOVIRTUAL ──────────────────────────────────
+// O Imovirtual é uma aplicação Next.js: os dados dos anúncios vêm num bloco
+// JSON embutido no HTML (__NEXT_DATA__), não no texto visível. Ler o JSON é
+// muito mais fiável do que analisar o texto renderizado.
 function extrairImovirtual(html) {
+  // ── 1ª via: JSON embutido ──
+  try {
+    const mJson = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+    if (mJson) {
+      const dados = JSON.parse(mJson[1]);
+
+      // Procurar recursivamente o array de anúncios (a localização exacta varia
+      // entre versões do site, por isso percorremos a árvore à procura dele).
+      let itens = null;
+      const procurar = (obj, prof = 0) => {
+        if (!obj || typeof obj !== "object" || prof > 8 || itens) return;
+        if (Array.isArray(obj)) {
+          // Um array de anúncios tem objectos com totalPrice/title/slug
+          const parece = obj.length > 0 && obj.some(x => x && typeof x === "object" &&
+            (x.totalPrice || x.price) && (x.slug || x.title));
+          if (parece) { itens = obj; return; }
+          obj.forEach(x => procurar(x, prof + 1));
+        } else {
+          for (const k of Object.keys(obj)) procurar(obj[k], prof + 1);
+        }
+      };
+      procurar(dados);
+
+      if (itens && itens.length) {
+        const anuncios = [];
+        const vistos = new Set();
+        for (const it of itens) {
+          if (anuncios.length >= 40) break;
+          const slug = it.slug || "";
+          if (!slug || vistos.has(slug)) continue;
+          vistos.add(slug);
+
+          const preco = Number(it.totalPrice?.value ?? it.price?.value ?? it.totalPrice ?? it.price ?? 0) || 0;
+          const area = Number(it.areaInSquareMeters ?? it.area ?? 0) || 0;
+          // roomsNumber pode vir numérico (3) ou por extenso ("THREE")
+          const PALAVRAS = { ZERO:0, ONE:1, TWO:2, THREE:3, FOUR:4, FIVE:5, SIX:6, SEVEN:7, EIGHT:8, NINE:9, TEN:10 };
+          const bruto = it.roomsNumber ?? it.rooms ?? 0;
+          const quartos = typeof bruto === "string"
+            ? (PALAVRAS[bruto.toUpperCase()] ?? Number(bruto.replace(/\D/g, "")) ?? 0)
+            : Number(bruto) || 0;
+          const precoM2 = Number(it.pricePerSquareMeter?.value ?? it.pricePerSquareMeter ?? 0) ||
+            (preco > 0 && area > 0 ? Math.round(preco / area) : 0);
+
+          anuncios.push({
+            id: `iv-${slug}`, portal: "Imovirtual",
+            titulo: String(it.title || "").slice(0, 140),
+            url: `https://www.imovirtual.com/pt/anuncio/${slug}`,
+            preco, precoM2, area, quartos,
+          });
+        }
+        if (anuncios.length) {
+          const texto = html.replace(/<[^>]*>/g, " ");
+          const mTotal = texto.match(/de\s+([\d\s.]+)\s+an[úu]ncios/i);
+          return {
+            anuncios, precoMedioZona: 0,
+            total: mTotal ? Number(String(mTotal[1]).replace(/[\s.]/g, "")) : anuncios.length,
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.error("imovirtual JSON:", e.message);
+  }
+
+  // ── 2ª via (recurso): análise do texto renderizado ──
   const anuncios = [];
   const vistos = new Set();
-  // Links de anúncio: /pt/anuncio/{slug}-ID{codigo}
   const regexLink = /<a[^>]+href="(\/pt\/anuncio\/([a-z0-9-]+-ID[A-Za-z0-9]+))"[^>]*>([\s\S]{0,300}?)<\/a>/gi;
   let m;
   while ((m = regexLink.exec(html)) !== null && anuncios.length < 40) {
     const [, href, id, interior] = m;
     if (vistos.has(id)) continue;
     const titulo = interior.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-    // Os links de imagem não têm texto — o título vem no link de texto
     if (!titulo || titulo.length < 8) continue;
 
-    // Preço: no Imovirtual aparece ANTES do título. Usamos o match mais próximo
-    // do link (o último antes dele), para não apanhar o preço do anúncio anterior.
     const antes = html.slice(Math.max(0, m.index - 400), m.index).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ");
     const precos = [...antes.matchAll(/([\d][\d\s]{2,})\s*€(?!\/m)/g)];
     const precosM2 = [...antes.matchAll(/([\d\s.,]+)\s*€\/m²/g)];
     const mPreco = precos.length ? precos[precos.length - 1] : null;
     const mPrecoM2 = precosM2.length ? precosM2[precosM2.length - 1] : null;
 
-    // Área e tipologia vêm DEPOIS do título, no bloco de detalhes deste anúncio
     const depois = html.slice(m.index + m[0].length, m.index + m[0].length + 500).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ");
     const mArea = depois.match(/([\d.,]+)\s*m²/);
     const mTip = depois.match(/\bT(\d+)\b/);
@@ -132,8 +195,7 @@ function extrairImovirtual(html) {
   const texto = html.replace(/<[^>]*>/g, " ");
   const mTotal = texto.match(/de\s+([\d\s.]+)\s+an[úu]ncios/i);
   return {
-    anuncios,
-    precoMedioZona: 0, // o Imovirtual dá o preço médio do imóvel, não por m²
+    anuncios, precoMedioZona: 0,
     total: mTotal ? Number(String(mTotal[1]).replace(/[\s.]/g, "")) : anuncios.length,
   };
 }
