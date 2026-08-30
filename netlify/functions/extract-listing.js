@@ -47,9 +47,11 @@ export const handler = async (event) => {
   }
 
   try {
-    // Tenta primeiro directamente; se o portal bloquear (403/429), tenta via
-    // proxy público — o Idealista/Imovirtual bloqueiam por IP de datacenter,
-    // um proxy pode ter um IP diferente, não sinalizado.
+    // Estratégia de acesso ao portal:
+    // 1) Se houver token do Scrape.do configurado, usa-o (proxies residenciais,
+    //    contorna o bloqueio 403 que os portais fazem a IPs de datacenter).
+    // 2) Caso contrário, tenta o pedido directo (funciona nalguns portais).
+    // 3) Se o directo for bloqueado, tenta ainda um proxy público gratuito.
     const headersBrowser = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -57,25 +59,48 @@ export const handler = async (event) => {
       "Referer": "https://www.google.com/",
     };
 
-    let res = await fetch(url, { headers: headersBrowser, redirect: "follow" });
+    const TOKEN_SCRAPEDO = process.env.SCRAPEDO_TOKEN;
+    let res;
+    let viaUsada = "directo";
 
-    if (res.status === 403 || res.status === 429) {
+    if (TOKEN_SCRAPEDO) {
+      // geoCode=pt → IP português, mais natural para portais nacionais
+      const urlScrapeDo = `https://api.scrape.do/?token=${TOKEN_SCRAPEDO}&url=${encodeURIComponent(url)}&geoCode=pt`;
       try {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-        const resProxy = await fetch(proxyUrl, { headers: headersBrowser, redirect: "follow" });
-        if (resProxy.ok) res = resProxy;
+        res = await fetch(urlScrapeDo, { redirect: "follow" });
+        viaUsada = "scrape.do";
       } catch (e) {
-        console.error("proxy fallback falhou:", e.message);
+        console.error("scrape.do falhou, a tentar directo:", e.message);
+      }
+    }
+
+    if (!res || !res.ok) {
+      const resDirecto = await fetch(url, { headers: headersBrowser, redirect: "follow" });
+      if (resDirecto.ok) { res = resDirecto; viaUsada = "directo"; }
+      else if (!res || !res.ok) {
+        // último recurso: proxy público gratuito
+        try {
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+          const resProxy = await fetch(proxyUrl, { headers: headersBrowser, redirect: "follow" });
+          if (resProxy.ok) { res = resProxy; viaUsada = "proxy público"; }
+          else if (!res) res = resDirecto;
+        } catch (e) {
+          if (!res) res = resDirecto;
+        }
       }
     }
 
     if (!res.ok) {
+      const dica = TOKEN_SCRAPEDO
+        ? `O portal devolveu um erro (${res.status}) mesmo através do Scrape.do.`
+        : `O portal devolveu um erro (${res.status}). Configura SCRAPEDO_TOKEN no Netlify para contornar o bloqueio.`;
       return {
         statusCode: 200,
         headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
-        body: JSON.stringify({ error: `O portal devolveu um erro (${res.status}). Usa "Colar Texto" em alternativa.` }),
+        body: JSON.stringify({ error: `${dica} Usa "Colar Texto" em alternativa.` }),
       };
     }
+    console.log(`extract-listing: acedido via ${viaUsada}`);
 
     let html = await res.text();
 
