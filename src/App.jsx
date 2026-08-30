@@ -4739,6 +4739,7 @@ const PesquisaMercado = ({ mob, onImportar }) => {
   const [tipo, setTipo] = useState("Apartamento");
   const [finalidade, setFinalidade] = useState("Venda");
   const [tipologias, setTipologias] = useState([]);
+  const [portais, setPortais] = useState(["idealista", "imovirtual"]);
   const [precoMax, setPrecoMax] = useState("");
   const [precoMin, setPrecoMin] = useState("");
   const [areaMin, setAreaMin] = useState("");
@@ -4754,12 +4755,15 @@ const PesquisaMercado = ({ mob, onImportar }) => {
     if (!podePesquisar) return;
     setLoad(true); setErro(""); setRes(null);
     try {
-      // O Idealista usa "-distrito" quando é pesquisa de distrito inteiro
-      const zona = loc.concelho ? slugIdealista(loc.concelho) : `${slugIdealista(loc.distrito)}-distrito`;
       const r = await fetch("/api/search-listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ finalidade, tipo, zona, tipologias, precoMax, precoMin, areaMin }),
+        body: JSON.stringify({
+          finalidade, tipo, tipologias, precoMax, precoMin, areaMin, portais,
+          distrito: slugIdealista(loc.distrito),
+          concelho: loc.concelho ? slugIdealista(loc.concelho) : "",
+          freguesia: loc.freguesia ? slugIdealista(loc.freguesia) : "",
+        }),
       });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
@@ -4789,8 +4793,8 @@ const PesquisaMercado = ({ mob, onImportar }) => {
         <LocSelector distrito={loc.distrito} concelho={loc.concelho} freguesia={loc.freguesia} onChange={setLoc}/>
         {loc.distrito && (
           <p style={{fontSize:12,color:G.gold1,marginTop:8}}>
-            📍 {loc.concelho ? `${loc.concelho} · ${loc.distrito}` : `${loc.distrito} (distrito inteiro)`}
-            {loc.freguesia && <span style={{color:G.textDim}}> — a freguesia não é usada nesta pesquisa</span>}
+            📍 {[loc.freguesia, loc.concelho, loc.distrito].filter(Boolean).join(" · ")}
+            {!loc.concelho && <span style={{color:G.textDim}}> (distrito inteiro)</span>}
           </p>
         )}
 
@@ -4805,6 +4809,26 @@ const PesquisaMercado = ({ mob, onImportar }) => {
               <option>Venda</option><option>Arrendamento</option>
             </select>
           </Field>
+        </div>
+
+        <div style={{marginTop:12}}>
+          <p style={{fontSize:12,color:G.textMuted,marginBottom:8}}>Portais a pesquisar</p>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[{k:"idealista",n:"Idealista"},{k:"imovirtual",n:"Imovirtual"}].map(p => {
+              const activo = portais.includes(p.k);
+              return (
+                <button key={p.k} type="button"
+                  onClick={()=>setPortais(prev => prev.includes(p.k)
+                    ? (prev.length > 1 ? prev.filter(x=>x!==p.k) : prev)  // manter pelo menos um
+                    : [...prev, p.k])}
+                  style={{background:activo?G.gold1:"transparent",color:activo?"#0E0E0F":G.textMuted,
+                    border:`1px solid ${activo?G.gold1:G.border}`,borderRadius:6,padding:"7px 16px",
+                    fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:activo?600:400}}>
+                  {activo ? "✓ " : ""}{p.n}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {tipo !== "Terreno" && (
@@ -4833,7 +4857,7 @@ const PesquisaMercado = ({ mob, onImportar }) => {
         </div>
 
         <button className="btn-gold" onClick={pesquisar} disabled={loading||!podePesquisar} style={{width:"100%",marginTop:16}}>
-          {loading ? "🔍 A pesquisar no Idealista..." : "🔍 Pesquisar Anúncios"}
+          {loading ? `🔍 A pesquisar em ${portais.length>1?"ambos os portais":portais[0]==="idealista"?"Idealista":"Imovirtual"}...` : "🔍 Pesquisar Anúncios"}
         </button>
         {!podePesquisar && <p style={{fontSize:11,color:G.textDim,marginTop:8,textAlign:"center"}}>Selecciona pelo menos o distrito</p>}
       </div>
@@ -4877,9 +4901,10 @@ const PesquisaMercado = ({ mob, onImportar }) => {
                     <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:G.gold1}}>{eur(a.preco)}</span>
                     {a.precoM2 > 0 && <span style={{fontSize:12,color:G.textDim}}>{a.precoM2} €/m²</span>}
                   </div>
-                  <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
                     {a.quartos > 0 && <span className="tag" style={{background:G.surface3,color:G.textMuted}}>T{a.quartos}</span>}
                     {a.area > 0 && <span className="tag" style={{background:G.surface3,color:G.textMuted}}>{a.area} m²</span>}
+                    {a.portal && <span style={{fontSize:10,color:G.textDim,marginLeft:"auto"}}>{a.portal}</span>}
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <a href={a.url} target="_blank" rel="noreferrer" className="btn-ghost" style={{flex:1,textAlign:"center",textDecoration:"none",fontSize:12,padding:"8px 10px"}}>Ver anúncio</a>
@@ -4890,10 +4915,14 @@ const PesquisaMercado = ({ mob, onImportar }) => {
             })}
           </div>
 
-          {res.urlPesquisa && (
-            <p style={{fontSize:11,color:G.textDim,marginTop:16,textAlign:"center"}}>
-              <a href={res.urlPesquisa} target="_blank" rel="noreferrer" style={{color:G.textDim}}>Ver esta pesquisa no Idealista →</a>
-            </p>
+          {res.porPortal && res.porPortal.length > 0 && (
+            <div style={{marginTop:16,textAlign:"center",display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap"}}>
+              {res.porPortal.map(p => (
+                <a key={p.portal} href={p.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:p.erro?G.red:G.textDim,textDecoration:"none"}}>
+                  {p.erro ? `${p.portal}: sem resultados` : `Ver no ${p.portal} (${p.encontrados}) →`}
+                </a>
+              ))}
+            </div>
           )}
         </>
       )}
