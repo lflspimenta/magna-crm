@@ -354,11 +354,50 @@ const useIsMobile = () => {
   return mob;
 };
 
-const G = {
-  gold1:"#C9A84C", gold2:"#E8C96A", gold3:"#F5E199", goldDark:"#8B6914",
-  bg:"#0E0E0F", surface:"#161618", surface2:"#1E1E21", surface3:"#26262B",
-  border:"#2E2E33", text:"#F0EDE6", textMuted:"#8A8880", textDim:"#5A5855",
-  red:"#E05252", green:"#52C07A", blue:"#5290E0", purple:"#9B72E0",
+// ── Temas ─────────────────────────────────────────────────────
+// Três paletas. Os contrastes de texto foram verificados:
+// no tema claro o dourado vivo (#C9A84C) dá 1,96:1 sobre creme —
+// ilegível — por isso passa a #7A5C12, que dá 5,36:1.
+const TEMAS = {
+  escuro: {
+    nome: "Escuro",
+    gold1:"#C9A84C", gold2:"#E8C96A", gold3:"#F5E199", goldDark:"#8B6914",
+    bg:"#0E0E0F", surface:"#161618", surface2:"#1E1E21", surface3:"#26262B",
+    border:"#2E2E33", text:"#F0EDE6", textMuted:"#8A8880", textDim:"#5A5855",
+    red:"#E05252", green:"#52C07A", blue:"#5290E0", purple:"#9B72E0",
+    sombra:"rgba(0,0,0,.45)", botaoTexto:"#0E0E0F",
+  },
+  medio: {
+    nome: "Intermédio",
+    gold1:"#C9A84C", gold2:"#E8C96A", gold3:"#F5E199", goldDark:"#8B6914",
+    bg:"#1C1C20", surface:"#24242A", surface2:"#2C2C33", surface3:"#35353D",
+    border:"#3E3E47", text:"#F0EDE6", textMuted:"#9A968C", textDim:"#6E6A64",
+    red:"#E05252", green:"#52C07A", blue:"#5290E0", purple:"#9B72E0",
+    sombra:"rgba(0,0,0,.35)", botaoTexto:"#14141A",
+  },
+  claro: {
+    nome: "Claro",
+    gold1:"#7A5C12", gold2:"#8B6914", gold3:"#A6851F", goldDark:"#5C4410",
+    bg:"#F3EDE4", surface:"#FBF8F3", surface2:"#FFFFFF", surface3:"#EDE6DA",
+    border:"#DDD4C6", text:"#2E2A26", textMuted:"#6B655B", textDim:"#8A8378",
+    red:"#C23B3B", green:"#2F7347", blue:"#2F6BB5", purple:"#7049B8",
+    sombra:"rgba(60,50,35,.14)", botaoTexto:"#FBF8F3",
+  },
+};
+
+const TEMA_GUARDADO = (() => {
+  try { const t = localStorage.getItem("magna-tema"); return TEMAS[t] ? t : "escuro"; }
+  catch (e) { return "escuro"; }
+})();
+
+// Objecto mutável: os estilos inline lêem-no a cada render,
+// por isso mudar as propriedades muda a aplicação inteira.
+const G = { ...TEMAS[TEMA_GUARDADO] };
+
+const aplicarTema = (id) => {
+  if (!TEMAS[id]) return;
+  Object.assign(G, TEMAS[id]);
+  try { localStorage.setItem("magna-tema", id); } catch (e) {}
 };
 
 // ── User store (dynamic) ──────────────────────────────────────
@@ -2641,13 +2680,30 @@ const fmt = (v, monthly=false) => {
 const fmtFull = (v) => `${Number(v).toLocaleString("pt-PT")} €`;
 const fmtM2   = (v) => `${Number(v).toLocaleString("pt-PT")} €/m²`;
 
-const css = `
+// ── Selector de tema ──────────────────────────────────────────
+const SelectorTema = ({ tema, onTroca, mob }) => (
+  <div style={{display:"flex",gap:3,background:G.surface2,border:`1px solid ${G.border}`,
+    borderRadius:20,padding:3}} title="Aspecto">
+    {Object.entries(TEMAS).map(([id, t]) => {
+      const on = tema === id;
+      return (
+        <button key={id} onClick={()=>onTroca(id)} title={t.nome}
+          style={{width:mob?24:20,height:mob?24:20,borderRadius:"50%",cursor:"pointer",
+            border:on?`1.5px solid ${G.gold1}`:`1.5px solid ${G.border}`,
+            background:id==="escuro"?"#0E0E0F":id==="medio"?"#2C2C33":"#F3EDE4",
+            padding:0,transition:"all .15s",opacity:on?1:.55}}/>
+      );
+    })}
+  </div>
+);
+
+const buildCss = () => `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:${G.bg};color:${G.text};font-family:'DM Sans',sans-serif}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${G.surface}}::-webkit-scrollbar-thumb{background:${G.goldDark};border-radius:2px}
 .gg{background:linear-gradient(135deg,${G.goldDark},${G.gold1},${G.gold2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.btn-gold{background:linear-gradient(135deg,${G.goldDark},${G.gold1});color:#0E0E0F;border:none;padding:10px 22px;border-radius:7px;font-family:'DM Sans',sans-serif;font-weight:500;font-size:13px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:7px;letter-spacing:.3px}
+.btn-gold{background:linear-gradient(135deg,${G.goldDark},${G.gold1});color:${G.botaoTexto};border:none;padding:10px 22px;border-radius:7px;font-family:'DM Sans',sans-serif;font-weight:500;font-size:13px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:7px;letter-spacing:.3px}
 .btn-gold:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .btn-gold:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .btn-ghost{background:transparent;color:${G.textMuted};border:1px solid ${G.border};padding:9px 18px;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
@@ -2876,7 +2932,7 @@ const LoginScreen = ({onLogin}) => {
 
   return (
     <div className="login-wrap">
-      <style>{css}</style>
+      <style>{buildCss()}</style>
       {/* Orbs */}
       <div className="orb" style={{width:500,height:500,background:`${G.goldDark}18`,top:-150,left:-150}}/>
       <div className="orb" style={{width:300,height:300,background:`${G.purple}12`,bottom:-80,left:200}}/>
@@ -4627,7 +4683,7 @@ const GestaoUtilizadores = ({currentUser}) => {
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {lista.map(u => (
           <div key={u.id} className="card" style={{display:"flex",alignItems:"center",gap:16}}>
-            <div style={{width:46,height:46,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:20,color:"#0E0E0F",flexShrink:0}}>{u.avatar}</div>
+            <div style={{width:46,height:46,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:20,color:G.botaoTexto,flexShrink:0}}>{u.avatar}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                 <p style={{fontWeight:500,fontSize:15}}>{u.nome}</p>
@@ -5361,7 +5417,7 @@ Regras:
             <p style={{fontSize:12,fontWeight:500,color:G.text,marginBottom:8}}>📋 Como fazer:</p>
             {["Abre o anúncio no Idealista ou Imovirtual","Selecciona todo o texto (Ctrl+A / Cmd+A no PC, pressiona e segura no telemóvel)","Copia (Ctrl+C / Cmd+C)","Cola aqui em baixo e clica \"Extrair Dados\""].map((s,i)=>(
               <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:i<3?7:0}}>
-                <span style={{width:18,height:18,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#0E0E0F",flexShrink:0}}>{i+1}</span>
+                <span style={{width:18,height:18,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:G.botaoTexto,flexShrink:0}}>{i+1}</span>
                 <p style={{fontSize:12,color:G.textMuted,lineHeight:1.5}}>{s}</p>
               </div>
             ))}
@@ -5709,7 +5765,7 @@ const AssociarProprietario = ({ imovel, onClose, onAssociado }) => {
             {filtrados.map(p => (
               <div key={p.id} onClick={()=>!saving&&associar(p.id)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:G.surface2,border:`1px solid ${G.border}`,borderRadius:8,cursor:saving?"wait":"pointer"}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:"#0E0E0F",flexShrink:0}}>{p.nome.charAt(0)}</div>
+                <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:G.botaoTexto,flexShrink:0}}>{p.nome.charAt(0)}</div>
                 <div style={{minWidth:0,flex:1}}>
                   <p style={{fontSize:14,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nome}</p>
                   {p.nif && <span style={{fontSize:11,color:G.textDim}}>NIF {p.nif}</span>}
@@ -6272,7 +6328,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtua
     <Modal title="" onClose={onClose}>
       {/* Cabeçalho com avatar */}
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,paddingBottom:18,borderBottom:`1px solid ${G.border}`}}>
-        <div style={{width:64,height:64,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:28,color:"#0E0E0F",flexShrink:0}}>{c.nome.charAt(0)}</div>
+        <div style={{width:64,height:64,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:28,color:G.botaoTexto,flexShrink:0}}>{c.nome.charAt(0)}</div>
         <div style={{flex:1,minWidth:0}}>
           <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:26,fontWeight:600,marginBottom:4}}>{c.nome}</h2>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -6592,7 +6648,7 @@ const Proprietarios = ({ mob, userAtual }) => {
         <div className="card" style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:22,color:"#0E0E0F"}}>{detail.nome.charAt(0)}</div>
+              <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:22,color:G.botaoTexto}}>{detail.nome.charAt(0)}</div>
               <div>
                 <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600}}>{detail.nome}</h2>
                 <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
@@ -6856,7 +6912,7 @@ const Proprietarios = ({ mob, userAtual }) => {
             <div key={p.id} className="card" style={{cursor:"pointer"}} onClick={()=>setDetail(p)}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:"#0E0E0F"}}>{p.nome.charAt(0)}</div>
+                  <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:G.botaoTexto}}>{p.nome.charAt(0)}</div>
                   <div>
                     <p style={{fontWeight:500,fontSize:15}}>{p.nome}</p>
                     {p.nif && <span style={{fontSize:12,color:G.textDim}}>NIF {p.nif}</span>}
@@ -6900,7 +6956,7 @@ const Clientes=({clientes,setClientes,imoveis=[],user,mob})=>{
           <div key={c.id} className="card" style={{cursor:"pointer"}} onClick={()=>setDetailCli(c)}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:"#0E0E0F"}}>{c.nome.charAt(0)}</div>
+                <div style={{width:42,height:42,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:17,color:G.botaoTexto}}>{c.nome.charAt(0)}</div>
                 <div><p style={{fontWeight:500,fontSize:15}}>{c.nome}</p><span className={`tag badge-${c.temperatura.toLowerCase()}`}>{c.temperatura}</span></div>
               </div>
               <div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
@@ -7124,7 +7180,7 @@ const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,mob}
 
       {/* Cliente associado */}
       {t.cliente && <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:"#0E0E0F",flexShrink:0}}>{t.cliente.charAt(0)}</div>
+        <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,color:G.botaoTexto,flexShrink:0}}>{t.cliente.charAt(0)}</div>
         <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Cliente</p><p style={{fontSize:14,fontWeight:500}}>{t.cliente}</p></div>
       </div>}
 
@@ -8050,7 +8106,7 @@ export default function App() {
   // Ecrã de loading durante o boot (a verificar sessão)
   if (bootLoading) return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:G.bg,flexDirection:"column",gap:18}}>
-      <style>{css}</style>
+      <style>{buildCss()}</style>
       <div className="spinner" style={{width:32,height:32,borderWidth:3,borderColor:`${G.gold1}30`,borderTopColor:G.gold1}}/>
       <p style={{color:G.textMuted,fontSize:13}}>A carregar...</p>
     </div>
@@ -8058,6 +8114,9 @@ export default function App() {
 
   if (user) window.__magnaUser = user;
   window.__magnaSetPage = setPage;
+
+  const [tema, setTema] = useState(TEMA_GUARDADO);
+  const trocarTema = (id) => { aplicarTema(id); setTema(id); };
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
@@ -8079,7 +8138,7 @@ export default function App() {
 
   return(
     <>
-      <style>{css}</style>
+      <style>{buildCss()}</style>
 
       {/* ── Desktop layout ── */}
       {!mob && (
@@ -8097,8 +8156,12 @@ export default function App() {
               ))}
             </nav>
             <div style={{borderTop:`1px solid ${G.border}`,paddingTop:14}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"0 4px 11px"}}>
+                <span style={{fontSize:10,letterSpacing:".18em",textTransform:"uppercase",color:G.textDim}}>Aspecto</span>
+                <SelectorTema tema={tema} onTroca={trocarTema} mob={false}/>
+              </div>
               <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 8px",borderRadius:8,background:G.surface2}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:"#0E0E0F",flexShrink:0}}>{user.avatar}</div>
+                <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:G.botaoTexto,flexShrink:0}}>{user.avatar}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontSize:13,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome.split(" ")[0]}</p>
                   <p style={{fontSize:11,color:G.textDim}}>{user.cargo}</p>
@@ -8137,12 +8200,13 @@ export default function App() {
           <div style={{background:G.surface,borderBottom:`1px solid ${G.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
             <Logo/>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <SelectorTema tema={tema} onTroca={trocarTema} mob={true}/>
               <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:3}}>
-                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
-                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
-                <div style={{width:18,height:2,background:"rgba(245,239,227,0.5)",borderRadius:1}}/>
+                <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
+                <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
+                <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
               </button>
-              <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:"#0E0E0F"}}>{user.avatar}</div>
+              <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:14,color:G.botaoTexto}}>{user.avatar}</div>
               <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"6px",display:"flex"}}>
                 <Ic n="logout" s={18} c={G.red}/>
               </button>
