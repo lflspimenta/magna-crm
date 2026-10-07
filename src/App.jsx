@@ -4220,11 +4220,6 @@ const Angariações = ({user, mob, setImoveis, setPage}) => {
           <p style={{color:G.textMuted,fontSize:12,marginTop:2}}>{lista.length} contratos</p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn-ghost" style={{padding:mob?"9px 12px":"10px 16px",fontSize:12,borderColor:`${G.gold1}50`,color:G.gold1}} onClick={() => gerarDossierConstrutor()}>
-            <Ic n="pdf" s={14} c={G.gold1}/>
-            {!mob && "Dossier Institucional"}
-          </button>
-          
           <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={nova}>
             <Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Nova":"Nova Angariação"}
           </button>
@@ -7391,108 +7386,6 @@ const Dashboard=({imoveis,clientes,tarefas,user,setPage,mob})=>{
       </div>
     </div>
   );
-};
-// ==========================================
-// 1. DOSSIER INSTITUCIONAL (Construtores / Promotores - Versão Inovação & Captação)
-// ==========================================
-const gerarDossierConstrutor = () => {
-  const hoje = new Date().toLocaleDateString("pt-PT");
-  const dadosEmpresa = {
-    nomeEmpresa: "Magna Group Real Estate",
-    fundadoras: [
-      { nome: "Cátia Barbosa", cargo: "Managing Partner & Founder", bio: "Especialista em transações de ativos de alto rendimento, estruturação de produto e parcerias comerciais com promotores.", iniciais: "CB" },
-      { nome: "Ana Costa", cargo: "Managing Partner & Co-Founder", bio: "Foco total na qualificação de compradores institucionais, due diligence comercial e escoamento acelerado de empreendimentos.", iniciais: "AC" }
-    ],
-    contactoGeral: "geral@magnagroup.pt",
-    telefoneGeral: "+351 900 000 000"
-  };
-
-  const win = window.open("", "_blank");
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Inovação e Parceria Estratégica para Construtores — Magna Group</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;color:#1c1c1c;background:#fff;line-height:1.7}
-.page{max-width:820px;margin:0 auto;padding:50px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;padding-bottom:15px;border-bottom:2px solid #C9A84C}
-.logo-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#8B6914;letter-spacing:2px}
-.logo-sub{font-size:9px;color:#888;letter-spacing:3px;text-transform:uppercase}
-.badge{background:#fdf8ed;border:1px solid #e8d5a0;padding:6px 14px;border-radius:20px;font-size:11px;color:#8B6914;font-weight:600;text-transform:uppercase;letter-spacing:1px}
-.hero{background:linear-gradient(135deg,#111,#1f1a10);color:#fff;padding:34px;border-radius:10px;margin-bottom:26px;border-left:4px solid #C9A84C}
-.hero h1{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;margin-bottom:10px;color:#F0EDE6}
-.hero p{font-size:13.5px;color:#dcd6cd;line-height:1.6}
-h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:#8B6914;border-bottom:1px solid #e8d5a0;padding-bottom:4px;margin:22px 0 10px}
-.founders-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
-.founder-card{background:#fcfbfa;padding:18px;border-radius:8px;border:1px solid #eee;text-align:center}
-.avatar-box{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#0E0E0F;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
-.box{background:#fcfbfa;border-radius:8px;padding:15px;border:1px solid #eee}
-.box-title{font-family:'Cormorant Garamond',serif;font-size:14.5px;font-weight:600;color:#8B6914;margin-bottom:6px}
-.box-desc{font-size:11.5px;color:#555;line-height:1.5}
-.quote-box{background:#faf9f5;border-left:4px solid #C9A84C;padding:16px 18px;border-radius:0 8px 8px 0;font-size:13px;color:#444;line-height:1.6;font-style:italic;margin:18px 0}
-.footer{margin-top:35px;padding-top:15px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-.btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
-</style></head><body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="logo-name">MAGNA</div>
-      <div class="logo-sub">Group Real Estate · Portugal</div>
-    </div>
-    <div class="badge">Inovação & Parceria Estratégica</div>
-  </div>
-
-  <div class="hero">
-    <h1>Inovação Comercial que Atrai Novos Compradores para o seu Empreendimento</h1>
-    <p>Não nos limitamos a colocar anúncios tradicionais. Na Magna Group, implementamos canais disruptivos de captação, campanhas digitais segmentadas por Inteligência Artificial e acesso direto a redes de investimento privado que aceleram as vendas e valorizam o seu projeto.</p>
-  </div>
-
-  <h2>Serviços Inovadores de Captação e Fecho</h2>
-  <div class="grid3">
-    <div class="box">
-      <div class="box-title">1. Marketing Preditivo por IA</div>
-      <div class="box-desc">Campanhas hiper-segmentadas direcionadas a perfis com alta intenção de compra e liquidez imediata, mapeados por dados comportamentais.</div>
-    </div>
-    <div class="box">
-      <div class="box-title">2. Roadshows Privados de Investimento</div>
-      <div class="box-desc">Apresentações exclusivas do seu empreendimento em formato "Closed-Door" a redes de investidores institucionais e *family offices*.</div>
-    </div>
-    <div class="box">
-      <div class="box-title">3. Dossiers de Oportunidade Dinâmicos</div>
-      <div class="box-desc">Relatórios financeiros automáticos e transparentes entregues a cada potencial comprador, destacando yields e margens de valorização instantânea.</div>
-    </div>
-  </div>
-
-  <h2>Liderança Executiva & Foco no Negócio</h2>
-  <div class="founders-grid">
-    <div class="founder-card">
-      <div class="avatar-box">${dadosEmpresa.fundadoras[0].iniciais}</div>
-      <p style="font-weight:600;font-size:14px;color:#1a1a1a">${dadosEmpresa.fundadoras[0].nome}</p>
-      <p style="font-size:11px;color:#8B6914;margin-bottom:6px;text-transform:uppercase">${dadosEmpresa.fundadoras[0].cargo}</p>
-      <p style="font-size:11.5px;color:#666">${dadosEmpresa.fundadoras[0].bio}</p>
-    </div>
-    <div class="founder-card">
-      <div class="avatar-box">${dadosEmpresa.fundadoras[1].iniciais}</div>
-      <p style="font-weight:600;font-size:14px;color:#1a1a1a">${dadosEmpresa.fundadoras[1].nome}</p>
-      <p style="font-size:11px;color:#8B6914;margin-bottom:6px;text-transform:uppercase">${dadosEmpresa.fundadoras[1].cargo}</p>
-      <p style="font-size:11.5px;color:#666">${dadosEmpresa.fundadoras[1].bio}</p>
-    </div>
-  </div>
-
-  <div class="quote-box">
-    "A nossa inovação traz clientes que o mercado tradicional não alcança. O construtor que trabalha connosco ganha novos canais de distribuição de produto e uma vantagem competitiva decisiva."
-  </div>
-
-  <div class="footer">
-    <div><strong>${dadosEmpresa.nomeEmpresa}</strong><br>Contacto institucional: ${dadosEmpresa.contactoGeral} · ${dadosEmpresa.telefoneGeral}</div>
-    <div style="text-align:right">Emitido em ${hoje}<br><em>Proposta de Parceria Comercial Confidencial</em></div>
-  </div>
-</div>
-<button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar Dossier PDF</button>
-</body></html>`);
-  win.document.close();
 };
 
 // ==========================================
