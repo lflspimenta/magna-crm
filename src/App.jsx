@@ -8015,6 +8015,7 @@ export default function App() {
   const [tarefas,setTarefas]   = useState([]);
   const [loading,setLoading]   = useState(false);
   const [bootLoading,setBootLoading] = useState(true);
+  const [tema, setTema]        = useState(TEMA_GUARDADO);
   const mob                    = useIsMobile();
 
   // Recuperar sessão no arranque
@@ -8114,9 +8115,8 @@ export default function App() {
 
   if (user) window.__magnaUser = user;
   window.__magnaSetPage = setPage;
-
-  const [tema, setTema] = useState(TEMA_GUARDADO);
   const trocarTema = (id) => { aplicarTema(id); setTema(id); };
+
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
