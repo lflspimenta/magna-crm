@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { dbReady, dbImoveis, dbClientes, dbTarefas, dbAngariacoes, dbUtilizadores, uploadFoto, deleteFoto, deleteFotos, dbLeadsGestao, dbLeadsAquisicao, dbLeadsHabitar, dbProprietarios, dbDocsProprietario, uploadDocumento, deleteDocumento, dbVisitas } from "./db.js";
+import DossierInstitucional from "./DossierInstitucional";
+import Manual from "./Manual";
+import Negocios from "./Negocios";
+import Interesses from "./Interesses";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -5739,7 +5743,7 @@ const AssociarProprietario = ({ imovel, onClose, onAssociado }) => {
   );
 };
 
-const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,mob})=>{
+const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,onAssociarProp,onCriarAngariacao,proprietarioNome,clientes=[],userAtual,mob})=>{
   const [fotoIdx,setFotoIdx]=useState(0);
   const fotos=imovel.fotos||[];
   const temFotos=fotos.length>0;
@@ -5867,6 +5871,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,on
   	<Ic n="pdf" s={14} c="#0E0E0F"/> Dossier Investidor
 	</button>
       </div>
+      <Interesses modo="imovel" imovel={imovel} clientes={clientes} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -6126,7 +6131,7 @@ const Imoveis=({imoveis,setImoveis,clientes=[],user,setPage,mob})=>{
 
       {mktIm&&<MarketModal imovel={mktIm} onClose={()=>setMktIm(null)} onPDF={generatePDF} onSaved={(json)=>{setImoveis(prev=>prev.map(i=>i.id===mktIm.id?{...i,avaliacaoIA:json}:i));}}/>}
       {importMod&&<ImportModal urlInicial={urlPreImport} onClose={()=>{setImportMod(false);setUrlPreImport(null);}} onImport={onImport}/>}
-      {detailIm&&<ImovelDetalhe imovel={detailIm} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
+      {detailIm&&<ImovelDetalhe imovel={detailIm} clientes={clientes} userAtual={user} onClose={()=>setDetailIm(null)} onEdit={()=>{setForm(detailIm);setEditId(detailIm.id);setDetailIm(null);setMod(true);}} onMkt={()=>{setMktIm(detailIm);setDetailIm(null);}} onVisita={()=>{setVisitaIm(detailIm);setDetailIm(null);}} onDossier={()=>{setDossierIm(detailIm);setDetailIm(null);}} onAssociarProp={()=>{setAssocIm(detailIm);setDetailIm(null);}} onCriarAngariacao={()=>{
         const prop=proprietarios.find(x=>String(x.id)===String(detailIm.proprietario_id));
         window.__magnaAngariacaoPre={
           imovelOrigemId: detailIm.id,
@@ -6265,7 +6270,7 @@ const partilharCliente = async (c) => {
   else { try { await navigator.clipboard.writeText(texto); alert("✓ Contacto copiado!"); } catch { alert("Não foi possível partilhar."); } }
 };
 
-const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
+const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtual}) => {
   const c = cliente;
   const [bcftCli, setBcftCli] = useState(false);
   return (
@@ -6331,6 +6336,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,mob,userAtual}) => {
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
           {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
+      <Interesses modo="cliente" cliente={c} imoveis={imoveis} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -6878,7 +6884,7 @@ const Proprietarios = ({ mob, userAtual }) => {
   );
 };
 
-const Clientes=({clientes,setClientes,mob})=>{
+const Clientes=({clientes,setClientes,imoveis=[],user,mob})=>{
   const [search,setSrch]=useState("");
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyCl);
@@ -6919,7 +6925,7 @@ const Clientes=({clientes,setClientes,mob})=>{
           </div>
         ))}
       </div>
-      {detailCli && <ClienteDetalhe cliente={detailCli} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={window.__magnaUser}/>}
+      {detailCli && <ClienteDetalhe cliente={detailCli} imoveis={imoveis} onClose={()=>setDetailCli(null)} onEdit={()=>{setForm({...detailCli,tipologia:detailCli.tipologia||[]});setEditId(detailCli.id);setDetailCli(null);setMod(true);}} onDelete={()=>{eliminar(detailCli);setDetailCli(null);}} mob={mob} userAtual={user||window.__magnaUser}/>}
       
       {modal&&<Modal title={editId?"Editar Cliente":"Novo Lead"} onClose={()=>setMod(false)}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -8158,13 +8164,17 @@ export default function App() {
   );
 
   if (user) window.__magnaUser = user;
+  window.__magnaSetPage = setPage;
   if (!user) return <LoginScreen onLogin={u=>{setUser(u);setPage("dashboard");}}/>;
 
  const nav=[
   {id:"dashboard",   label:"Início",       icon:"home"},
+  {id:"dossier",     label:"Dossier",      icon:"pdf"},
+  {id:"manual",      label:"Manual",       icon:"file"},
   {id:"angariações", label:"Angariações",  icon:"file"},
   {id:"imoveis",     label:"Imóveis",      icon:"building"},
   {id:"clientes",    label:"Clientes",     icon:"users"},
+  {id:"negocios",    label:"Negócios",     icon:"chart"},
   {id:"proprietarios", label:"Proprietários", icon:"key"},
   {id:"funil",       label:"Funil",        icon:"chart"},
   {id:"agenda",      label:"Agenda",       icon:"calendar"},
@@ -8200,6 +8210,9 @@ export default function App() {
                   <p style={{fontSize:13,fontWeight:500,color:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome.split(" ")[0]}</p>
                   <p style={{fontSize:11,color:G.textDim}}>{user.cargo}</p>
                 </div>
+                <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:page==="utilizadores"?1:.6}} title="Utilizadores">
+                  <Ic n="users" s={16} c={page==="utilizadores"?G.gold1:G.textDim}/>
+                </button>
                 <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",opacity:.6}} title="Terminar sessão">
                   <Ic n="logout" s={16} c={G.red}/>
                 </button>
@@ -8208,9 +8221,12 @@ export default function App() {
           </aside>
           <main style={{flex:1,overflow:"auto",padding:32}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={false}/>}
+            {page==="dossier"&&<DossierInstitucional mob={false}/>}
+            {page==="manual"&&<Manual mob={false} user={user}/>}
+            {page==="negocios"&&<Negocios mob={false} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={false} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={false}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
@@ -8242,9 +8258,12 @@ export default function App() {
           {/* Main scrollable content */}
           <main style={{flex:1,overflow:"auto",padding:"20px 16px",paddingBottom:80}}>
             {page==="dashboard"&&<Dashboard imoveis={imoveis} clientes={clientes} tarefas={tarefas} user={user} setPage={setPage} mob={true}/>}
+            {page==="dossier"&&<DossierInstitucional mob={true}/>}
+            {page==="manual"&&<Manual mob={true} user={user}/>}
+            {page==="negocios"&&<Negocios mob={true} user={user}/>}
             {page==="angariações"&&<Angariações user={user} mob={true} setImoveis={wImoveis} setPage={setPage}/>}
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
-            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} mob={true}/>}
+            {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
             {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
