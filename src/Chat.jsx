@@ -113,12 +113,18 @@ export default function Chat({ user, mob = false }) {
 
   // Se a pessoa com quem falo sair, a conversa fica à vista para
   // se poder ler o que ficou, mas a caixa de escrita fecha —
-  // ver `destinoOffline` mais abaixo.
+  // ver `semDestino` mais abaixo.
 
   const enviar = useCallback(() => {
     const t = texto.trim();
     const ch = canalRef.current;
     if (!t || !ch || !ligado) return;
+    // Não enviar para o vazio, mesmo que a caixa escape à condição
+    // de cima por um instante entre renders.
+    const haQuemLeia = vista === SALA
+      ? online.length > 0
+      : online.some(p => String(p.id) === String(vista));
+    if (!haQuemLeia) return;
     ch.send({
       type: "broadcast",
       event: "msg",
@@ -133,7 +139,7 @@ export default function Chat({ user, mob = false }) {
       },
     });
     setTexto("");
-  }, [texto, vista, ligado, user]);
+  }, [texto, vista, ligado, user, online]);
 
   if (!podeUsar) return null;
 
@@ -145,7 +151,12 @@ export default function Chat({ user, mob = false }) {
   );
 
   const pessoaAlvo = vista === SALA ? null : online.find(p => String(p.id) === String(vista));
-  const destinoOffline = vista !== SALA && !pessoaAlvo;
+
+  // Sem ninguém para ler, a caixa de escrita fecha — na sala tal
+  // como na conversa a dois. As mensagens não ficam à espera de
+  // quem entrar depois: ou há alguém do outro lado, ou não se
+  // escreve. Para isso existe o WhatsApp.
+  const semDestino = vista === SALA ? online.length === 0 : !pessoaAlvo;
   const totalPorLer = Object.values(porLer).reduce((a, b) => a + b, 0);
 
   const larguraPainel = mob ? "calc(100vw - 24px)" : 360;
@@ -265,9 +276,11 @@ export default function Chat({ user, mob = false }) {
 
           {/* Caixa de escrita */}
           <div style={{ padding: 10, borderTop: `1px solid ${G.border}`, flexShrink: 0, background: G.surface2 }}>
-            {destinoOffline ? (
+            {semDestino ? (
               <p style={{ fontSize: 11.5, color: G.textDim, textAlign: "center", padding: "7px 4px", lineHeight: 1.5 }}>
-                Esta pessoa saiu. Para lhe falar agora, usa o WhatsApp.
+                {vista === SALA
+                  ? "Ninguém online para ler. O que escreveres agora não fica à espera — usa o WhatsApp."
+                  : "Esta pessoa saiu. Para lhe falar agora, usa o WhatsApp."}
               </p>
             ) : (
               <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
