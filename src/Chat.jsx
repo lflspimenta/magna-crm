@@ -247,10 +247,10 @@ export default function Chat({ user, mob = false }) {
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 16 }}>
             {visiveis.length === 0 && (
               <p style={{ fontSize: 12, color: G.textDim, textAlign: "center", margin: "auto", lineHeight: 1.6, padding: "0 14px" }}>
+                {/* O aviso de que não há ninguém a ler está no rodapé;
+                    aqui diz-se só o que é esta conversa. */}
                 {vista === SALA
-                  ? (online.length === 0
-                      ? "Ninguém online neste momento. Para falar com alguém que não está aqui, usa o WhatsApp."
-                      : "Sala comum. O que escreveres aqui é lido por todos os que estão online.")
+                  ? "Sala comum. O que escreveres aqui é lido por todos os que estão online."
                   : "Conversa directa. Só vocês os dois lêem."}
               </p>
             )}
@@ -307,9 +307,13 @@ export default function Chat({ user, mob = false }) {
                 </button>
               </div>
             )}
-            <p style={{ fontSize: 10, color: G.textDim, textAlign: "center", marginTop: 7 }}>
-              As mensagens desaparecem ao fechar o CRM.
-            </p>
+            {/* Com a caixa fechada, o aviso acima já diz o essencial —
+                não se empilha uma segunda nota por baixo. */}
+            {!semDestino && (
+              <p style={{ fontSize: 10, color: G.textDim, textAlign: "center", marginTop: 7 }}>
+                As mensagens desaparecem ao fechar o CRM.
+              </p>
+            )}
           </div>
         </div>
       )}

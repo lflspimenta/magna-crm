@@ -8,6 +8,7 @@ import Interesses from "./Interesses";
 import { TEMAS, TEMA_GUARDADO, G, aplicarTema, ROLES, ehAdmin, ehSocio, nomeRole, corRole } from "./tema.js";
 import Chat from "./Chat";
 import Comentarios from "./Comentarios";
+import { SEM_DONO, temDono, eMinha, donoDe, primeiroNome, camposDono, novaTarefaDe, filtrarTarefas, contarTarefas } from "./tarefas.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -7111,9 +7112,10 @@ const CalendarioMes = ({tarefas,mesAtual,setMesAtual,onDiaClick,diaDest}) => {
 };
 
 // ── AGENDA ────────────────────────────────────────────────────
-const emptyT2={titulo:"",cliente:"",data:"2026-05-22",hora:"09:00",tipo:"Visita",prioridade:"Média",concluida:false,local:"",notas:""};
+const emptyT2={titulo:"",cliente:"",data:"2026-05-22",hora:"09:00",tipo:"Visita",prioridade:"Média",concluida:false,local:"",notas:"",atribuidoId:null,atribuidoA:""};
+
 // ── FICHA DETALHADA DA TAREFA ─────────────────────────────────
-const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,mob}) => {
+const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,onAssumir,onLibertar,user,mob}) => {
   const t = tarefa;
   const tIco = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
   const priorCor = {Alta:G.red,Média:"#E0A052",Baixa:G.textDim};
@@ -7155,6 +7157,29 @@ const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,mob}
         <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Local</p><p style={{fontSize:14,fontWeight:500}}>{t.local}</p></div>
       </div>}
 
+      {/* Quem a tem */}
+      <div style={{background:G.surface2,borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+          background: temDono(t) ? `linear-gradient(135deg,${G.goldDark},${G.gold1})` : G.surface3,
+          border: temDono(t) ? "none" : `1px dashed ${G.border}`,
+          fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:15,
+          color: temDono(t) ? G.botaoTexto : G.textDim}}>
+          {temDono(t) ? donoDe(t).charAt(0).toUpperCase() : "?"}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>Responsável</p>
+          <p style={{fontSize:14,fontWeight:500,color:temDono(t)?G.text:G.textDim}}>
+            {donoDe(t)}{eMinha(t,user) && <span style={{fontSize:11,color:G.gold1,marginLeft:7}}>(tu)</span>}
+          </p>
+        </div>
+        {!temDono(t) && onAssumir && (
+          <button onClick={onAssumir} className="btn-ghost" style={{flexShrink:0,borderColor:G.gold1,color:G.gold1,padding:"6px 14px",fontSize:12}}>Assumir</button>
+        )}
+        {eMinha(t,user) && onLibertar && (
+          <button onClick={onLibertar} className="btn-ghost" style={{flexShrink:0,padding:"6px 14px",fontSize:12}}>Largar</button>
+        )}
+      </div>
+
       {/* Notas */}
       {t.notas && <div style={{marginBottom:16}}>
         <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Notas</p>
@@ -7172,25 +7197,57 @@ const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,mob}
   );
 };
 
-const Agenda=({tarefas,setTarefas,clientes,mob})=>{
+const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyT2);
   const [editId,setEditId]=useState(null);
   const [filtro,setFiltro]=useState("Todas");
+  const [quem,setQuem]=useState("minhas");   // minhas · livres · todos
+  const [equipa,setEquipa]=useState([]);     // para o selector de responsável
   const [vista,setVista]=useState("lista");
   const [mesAtual,setMesAtual]=useState(new Date());
   const [diaModal,setDiaModal]=useState(null);
   const [icsOk,setIcsOk]=useState(null);
   const [diaDest,setDiaDest]=useState(null); // dia a destacar após criar
   const [detailT,setDetailT]=useState(null);
-  const filtered=tarefas.filter(t=>filtro==="Todas"?true:filtro==="Pendentes"?!t.concluida:t.concluida);
+
+  // Só a direcção entrega tarefas a outra pessoa. Um consultor
+  // assume as que estão livres, mas não passa trabalho a colegas.
+  const podeAtribuir = ehSocio(user);
+
+  // A lista de utilizadores só é precisa para quem atribui.
+  useEffect(()=>{
+    if(!podeAtribuir||!dbReady) return;
+    (async()=>{
+      try{ setEquipa(await dbUtilizadores.list()); }
+      catch(e){ console.error("load equipa:",e); }
+    })();
+  },[podeAtribuir]);
+
+  const { minhas: minhasPendentes, total: totalPendentes, livres } = contarTarefas(tarefas, user);
+
+  const filtered=filtrarTarefas(tarefas,{estado:filtro,quem,user});
+
+  // Atribuir, assumir e largar passam pela mesma porta.
+  const mudarDono=(t,dono)=>{
+    const campos=camposDono(dono);
+    setTarefas(p=>p.map(x=>x.id===t.id?{...x,...campos}:x));
+    return campos;
+  };
+  const assumir =(t)=>mudarDono(t,user);
+  const libertar=(t)=>mudarDono(t,null);
+
+  // Uma tarefa nova nasce de quem a cria. Quem atribui pode
+  // mudá-la para outra pessoa, ou para "por atribuir", no próprio
+  // formulário — é assim que se deixa trabalho no monte comum.
+  const novaTarefa=(extra={})=>novaTarefaDe(emptyT2,user,extra);
 
   const save=(irCalendario=false)=>{
     if(!form.titulo)return;
     const nova={...form,id:editId||Date.now()};
     if(editId)setTarefas(p=>p.map(t=>t.id===editId?nova:t));
     else setTarefas(p=>[...p,nova]);
-    setMod(false);setForm(emptyT2);setEditId(null);
+    setMod(false);setForm(novaTarefa());setEditId(null);
     if(irCalendario&&nova.data){
       // Navega para o mês da tarefa e destaca o dia
       const [y,m] = nova.data.split('-');
@@ -7208,12 +7265,32 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mob?14:20}}>
-        <div><h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:28,fontWeight:600}}>Agenda & Tarefas</h1><p style={{color:G.textMuted,fontSize:12,marginTop:2}}>{tarefas.filter(t=>!t.concluida).length} pendentes</p></div>
-        <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={()=>{setForm(emptyT2);setEditId(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Criar":"Nova Tarefa"}</button>
+        <div>
+          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:mob?22:28,fontWeight:600}}>Agenda & Tarefas</h1>
+          {/* As tuas primeiro, porque é o que tens de fazer; o total
+              a seguir, porque é o que a direcção precisa de ver. */}
+          <p style={{color:G.textMuted,fontSize:12,marginTop:2}}>
+            <span style={{color:G.gold1,fontWeight:600}}>{minhasPendentes} tuas</span>
+            <span style={{margin:"0 6px",color:G.textDim}}>·</span>
+            {totalPendentes} pendentes no total
+            {livres>0 && <>
+              <span style={{margin:"0 6px",color:G.textDim}}>·</span>
+              <button onClick={()=>{setQuem("livres");setFiltro("Pendentes");}}
+                style={{background:"none",border:"none",padding:0,cursor:"pointer",font:"inherit",color:G.blue,textDecoration:"underline"}}>
+                {livres} por atribuir
+              </button>
+            </>}
+          </p>
+        </div>
+        <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={()=>{setForm(novaTarefa());setEditId(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Criar":"Nova Tarefa"}</button>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <div style={{display:"flex",gap:6}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {["Todas","Pendentes","Concluídas"].map(f=><button key={f} onClick={()=>setFiltro(f)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${filtro===f?G.gold1:G.border}`,background:filtro===f?G.gold1+"15":"transparent",color:filtro===f?G.gold1:G.textMuted,cursor:"pointer",fontSize:12}}>{f}</button>)}
+          <span style={{width:1,background:G.border,margin:"2px 4px"}}/>
+          {[["minhas","As minhas"],["livres","Por atribuir"],["todos","De todos"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setQuem(id)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${quem===id?G.blue:G.border}`,background:quem===id?G.blue+"15":"transparent",color:quem===id?G.blue:G.textMuted,cursor:"pointer",fontSize:12}}>{l}</button>
+          ))}
         </div>
         <div style={{display:"flex",gap:4,background:G.surface2,borderRadius:8,padding:3}}>
           {[["lista","☰ Lista"],["calendario","📅 Calendário"]].map(([v,l])=>(
@@ -7244,6 +7321,29 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
                 <p style={{fontSize:14,fontWeight:500,textDecoration:t.concluida?"line-through":"none",color:t.concluida?G.textDim:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.titulo}</p>
                 <p style={{fontSize:11,color:G.textMuted,marginTop:1}}>{t.cliente&&`${t.cliente} · `}{t.tipo}</p>
               </div>
+              {/* Quem a tem. Livre e por concluir, dá para a assumir aqui mesmo. */}
+              <div style={{flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                {temDono(t) ? (
+                  <span title={donoDe(t)} style={{
+                    display:"inline-flex",alignItems:"center",gap:6,padding:"3px 9px 3px 3px",borderRadius:12,
+                    background:eMinha(t,user)?`${G.gold1}18`:G.surface3,fontSize:11,
+                    color:eMinha(t,user)?G.gold1:G.textMuted}}>
+                    <span style={{width:19,height:19,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+                      background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,color:G.botaoTexto,
+                      fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:11}}>
+                      {donoDe(t).charAt(0).toUpperCase()}
+                    </span>
+                    {primeiroNome(t.atribuidoA)}
+                  </span>
+                ) : t.concluida ? (
+                  <span style={{fontSize:11,color:G.textDim}}>sem dono</span>
+                ) : (
+                  <button onClick={()=>assumir(t)} style={{
+                    padding:"4px 11px",borderRadius:12,cursor:"pointer",fontSize:11,
+                    background:"transparent",border:`1px dashed ${G.blue}70`,color:G.blue,
+                    fontFamily:"'DM Sans',sans-serif"}}>Assumir</button>
+                )}
+              </div>
               <div style={{textAlign:"right",flexShrink:0}}><p style={{fontSize:12,fontWeight:500,color:G.gold1}}>{t.hora}</p><p style={{fontSize:10,color:G.textDim}}>{t.data.split("-").reverse().join("/")}</p></div>
               <span className={`tag badge-${t.prioridade.toLowerCase().replace("é","e")}`} style={{flexShrink:0,fontSize:10}}>{t.prioridade}</span>
               {icsOk===t.id&&<span style={{fontSize:10,color:G.green,flexShrink:0}}>✓ics</span>}
@@ -7262,7 +7362,7 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
           {diaModal.tfs.length===0?(
             <div style={{textAlign:"center",padding:"20px 0"}}>
               <p style={{color:G.textMuted,fontSize:14,marginBottom:16}}>Sem tarefas neste dia.</p>
-              <button className="btn-gold" onClick={()=>{setForm({...emptyT2,data:diaModal.date});setDiaModal(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>Nova Tarefa</button>
+              <button className="btn-gold" onClick={()=>{setForm(novaTarefa({data:diaModal.date}));setDiaModal(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>Nova Tarefa</button>
             </div>
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -7282,7 +7382,7 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
                   </div>
                 </div>
               ))}
-              <button className="btn-gold" style={{marginTop:4}} onClick={()=>{setForm({...emptyT2,data:diaModal.date});setDiaModal(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>Nova Tarefa Neste Dia</button>
+              <button className="btn-gold" style={{marginTop:4}} onClick={()=>{setForm(novaTarefa({data:diaModal.date}));setDiaModal(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>Nova Tarefa Neste Dia</button>
             </div>
           )}
         </Modal>
@@ -7297,6 +7397,32 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
             <Field label="Data"><input type="date" value={form.data} onChange={e=>setForm(p=>({...p,data:e.target.value}))}/></Field>
             <Field label="Hora"><input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))}/></Field>
             <Field label="Prioridade"><select value={form.prioridade} onChange={e=>setForm(p=>({...p,prioridade:e.target.value}))}><option>Alta</option><option>Média</option><option>Baixa</option></select></Field>
+            <div style={{gridColumn:"1/-1"}}>
+              {podeAtribuir ? (
+                <Field label="Responsável">
+                  <select value={form.atribuidoId||""} onChange={e=>{
+                    const id=e.target.value;
+                    const p2=equipa.find(u=>String(u.id)===id);
+                    setForm(p=>({...p,atribuidoId:id||null,atribuidoA:p2?p2.nome:SEM_DONO}));
+                  }}>
+                    <option value="">Por atribuir — quem quiser assume</option>
+                    {equipa.map(u=><option key={u.id} value={String(u.id)}>{u.nome}{String(u.id)===String(user?.id)?" (tu)":""} · {u.cargo}</option>)}
+                  </select>
+                </Field>
+              ) : (
+                // Um consultor cria para si. Para passar a outra
+                // pessoa, deixa por atribuir e a direcção encaminha.
+                <Field label="Responsável">
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:G.surface2,border:`1px solid ${G.border}`,borderRadius:8}}>
+                    <span style={{fontSize:13,color:temDono(form)?G.text:G.textDim}}>{donoDe(form)}</span>
+                    <button type="button" onClick={()=>setForm(p=>({...p,...camposDono(temDono(p)?null:user)}))}
+                      style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",fontSize:11,color:G.blue,textDecoration:"underline",fontFamily:"'DM Sans',sans-serif"}}>
+                      {temDono(form)?"deixar por atribuir":"ficar com ela"}
+                    </button>
+                  </div>
+                </Field>
+              )}
+            </div>
             <div style={{gridColumn:"1/-1"}}><Field label="Local (opcional)"><input value={form.local||""} onChange={e=>setForm(p=>({...p,local:e.target.value}))} placeholder="Ex: Rua de Santa Catarina, Porto"/></Field></div>
             <div style={{gridColumn:"1/-1"}}><Field label="Notas (opcional)"><textarea rows={2} value={form.notas||""} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Detalhes adicionais..."/></Field></div>
           </div>
@@ -7322,7 +7448,10 @@ const Agenda=({tarefas,setTarefas,clientes,mob})=>{
           </div>
         </Modal>
       )}
-      {detailT && <TarefaDetalhe tarefa={detailT} onClose={()=>setDetailT(null)} onEdit={()=>{setForm(detailT);setEditId(detailT.id);setDetailT(null);setMod(true);}} onDelete={()=>{eliminar(detailT);setDetailT(null);}} onToggle={()=>{toggleConcluida(detailT);setDetailT(p=>({...p,concluida:!p.concluida}));}} onExportICS={()=>exportarEMostrar(detailT)} mob={mob}/>}
+      {detailT && <TarefaDetalhe tarefa={detailT} user={user} onClose={()=>setDetailT(null)} onEdit={()=>{setForm(detailT);setEditId(detailT.id);setDetailT(null);setMod(true);}} onDelete={()=>{eliminar(detailT);setDetailT(null);}} onToggle={()=>{toggleConcluida(detailT);setDetailT(p=>({...p,concluida:!p.concluida}));}} onExportICS={()=>exportarEMostrar(detailT)}
+        onAssumir={()=>{const c=assumir(detailT);setDetailT(p=>({...p,...c}));}}
+        onLibertar={()=>{const c=libertar(detailT);setDetailT(p=>({...p,...c}));}}
+        mob={mob}/>}
     </div>
   );
 };
@@ -8099,7 +8228,9 @@ export default function App() {
   {id:"prospeccao",  label:"IA",           icon:"spark"},
 ];
 
-  const pendentes = tarefas.filter(t=>!t.concluida).length;
+  // O número no menu é o teu: é o que tens para fazer. O total da
+  // empresa fica no cabeçalho da Agenda, para quem precisa dele.
+  const pendentes = tarefas.filter(t=>!t.concluida&&eMinha(t,user)).length;
 
   return(
     <>
@@ -8149,7 +8280,7 @@ export default function App() {
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={false}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={false}/>}
             {page==="proprietarios"&&<Proprietarios mob={false} userAtual={user}/>}
-            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={false}/>}
+            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} user={user} mob={false}/>}
             {page==="funil"&&<Funil mob={false}/>}
             {page==="mercado"&&<PesquisaMercado mob={false} onImportar={(url)=>{window.__magnaImportUrl=url;setPage("imoveis");}}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={false}/>}
@@ -8187,7 +8318,7 @@ export default function App() {
             {page==="imoveis"&&<Imoveis imoveis={imoveis} setImoveis={wImoveis} clientes={clientes} user={user} setPage={setPage} mob={true}/>}
             {page==="clientes"&&<Clientes clientes={clientes} setClientes={wClientes} imoveis={imoveis} user={user} mob={true}/>}
             {page==="proprietarios"&&<Proprietarios mob={true} userAtual={user}/>}
-            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} mob={true}/>}
+            {page==="agenda"&&<Agenda tarefas={tarefas} setTarefas={wTarefas} clientes={clientes} user={user} mob={true}/>}
             {page==="funil"&&<Funil mob={true}/>}
             {page==="mercado"&&<PesquisaMercado mob={true} onImportar={(url)=>{window.__magnaImportUrl=url;setPage("imoveis");}}/>}
             {page==="prospeccao"&&<ProspeccaoPanel mob={true}/>}

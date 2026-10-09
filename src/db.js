@@ -14,7 +14,7 @@ const toDB = (obj, mapping, allowed) => { const out = { ...obj }; for (const [ap
 const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque','publicado','proprietario_id', 'tipo_ativo', 'servico_gestao_arrendamento', 'servico_alojamento_local', 'servico_property_caretaker', 'servico_requalificacao', 'tem_projeto_aprovado', 'viabilidade_construtiva_pip', 'infraestruturas_basicas', 'topografia', 'avaliacao_ia'];
 const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','comissao_fixa','prazo','data_inicio','estado','sig_prop','sig_agente','proprietario_id'];
 const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','tipologia','obs', 'perfil_cliente', 'requisitos_especificos'];
-const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas'];
+const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas','atribuido_id','atribuido_a'];
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
@@ -44,7 +44,8 @@ function makeCRUD(table, mapping, allowed, opts = {}) {
 
 export const dbImoveis = makeCRUD('imoveis', M_IMOVEIS, F_IMOVEIS);
 export const dbClientes = makeCRUD('clientes', M_CLIENTES, F_CLIENTES);
-export const dbTarefas = makeCRUD('tarefas', {}, F_TAREFAS, { orderBy: 'data', ascending: true });
+const M_TAREFAS = { atribuidoId: 'atribuido_id', atribuidoA: 'atribuido_a' };
+export const dbTarefas = makeCRUD('tarefas', M_TAREFAS, F_TAREFAS, { orderBy: 'data', ascending: true });
 export const dbAngariacoes = makeCRUD('angariacoes', M_ANG, F_ANGARIACOES);
 export const dbProprietarios = makeCRUD('proprietarios', {}, F_PROPRIETARIOS);
 export const dbDocsProprietario = makeCRUD('documentos_proprietario', M_DOCS, F_DOCS_PROP);

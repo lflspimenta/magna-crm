@@ -314,7 +314,7 @@ const css = `
    Uma linha na Agenda por negócio reservado, actualizada
    sempre que a checklist muda. Some quando fica completa.
    ─────────────────────────────────────────────────────────── */
-async function sincronizarTarefa(it, imovelNome, clienteNome) {
+async function sincronizarTarefa(it, imovelNome, clienteNome, dono = null) {
   const itens = it.checklist?.itens || [];
   const falta = itens.filter(i => i.estado === "falta");
 
@@ -356,10 +356,17 @@ async function sincronizarTarefa(it, imovelNome, clienteNome) {
 
   try {
     if (it.tarefaId) {
+      // `payload` não traz o responsável de propósito: a tarefa já
+      // existe e pode ter sido atribuída a outra pessoa. Uma
+      // sincronização actualiza o conteúdo, não rouba o dono.
       await dbTarefas.update(it.tarefaId, payload);
       return it.tarefaId;
     }
-    const criada = await dbTarefas.insert(payload);
+    // À nascença fica com quem está a conduzir o processo, em vez
+    // de cair num monte comum que ninguém reclama.
+    const criada = await dbTarefas.insert(dono?.id
+      ? { ...payload, atribuidoId: String(dono.id), atribuidoA: dono.nome || "" }
+      : payload);
     return criada?.id || null;
   } catch (e) { return it.tarefaId || null; }
 }
@@ -436,7 +443,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
       }
       await dbInteresses.mudarEstado(it.id, estado, extra);
       const base = { ...it, estado, ...(extra.checklist ? { checklist: extra.checklist } : {}) };
-      const tid = await sincronizarTarefa(base, nomeImovel(it), nomeCliente(it));
+      const tid = await sincronizarTarefa(base, nomeImovel(it), nomeCliente(it), user);
       if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
       await carregarLista();
       if (estado === "reservado") setAberto(it.id);
@@ -464,7 +471,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     setLista(l => l.map(x => x.id === it.id ? { ...x, checklist: nova } : x));
     try {
       await dbInteresses.guardarChecklist(it.id, nova);
-      const tid = await sincronizarTarefa({ ...it, checklist: nova }, nomeImovel(it), nomeCliente(it));
+      const tid = await sincronizarTarefa({ ...it, checklist: nova }, nomeImovel(it), nomeCliente(it), user);
       if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
     } catch (e) { setErro("Não foi possível guardar: " + String(e?.message || e)); }
   };
@@ -474,7 +481,7 @@ export default function Interesses({ modo = "imovel", imovel, cliente, clientes 
     try {
       await dbInteresses.update(it.id, { [campo]: valor || null });
       const actualizado = { ...it, [campo]: valor };
-      const tid = await sincronizarTarefa(actualizado, nomeImovel(it), nomeCliente(it));
+      const tid = await sincronizarTarefa(actualizado, nomeImovel(it), nomeCliente(it), user);
       if (tid && tid !== it.tarefaId) await dbInteresses.update(it.id, { tarefaId: tid });
     } catch (e) { setErro("Não foi possível guardar a data: " + String(e?.message || e)); }
   };
