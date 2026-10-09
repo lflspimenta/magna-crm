@@ -5,6 +5,9 @@ import DossierInstitucional from "./DossierInstitucional";
 import Manual from "./Manual";
 import Negocios from "./Negocios";
 import Interesses from "./Interesses";
+import { TEMAS, TEMA_GUARDADO, G, aplicarTema, ROLES, ehAdmin, ehSocio, nomeRole, corRole } from "./tema.js";
+import Chat from "./Chat";
+import Comentarios from "./Comentarios";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
   const [tab, setTab] = useState("gestao");
@@ -352,52 +355,6 @@ const useIsMobile = () => {
     return () => window.removeEventListener("resize", fn);
   }, []);
   return mob;
-};
-
-// ── Temas ─────────────────────────────────────────────────────
-// Três paletas. Os contrastes de texto foram verificados:
-// no tema claro o dourado vivo (#C9A84C) dá 1,96:1 sobre creme —
-// ilegível — por isso passa a #7A5C12, que dá 5,36:1.
-const TEMAS = {
-  escuro: {
-    nome: "Escuro",
-    gold1:"#C9A84C", gold2:"#E8C96A", gold3:"#F5E199", goldDark:"#8B6914",
-    bg:"#0E0E0F", surface:"#161618", surface2:"#1E1E21", surface3:"#26262B",
-    border:"#2E2E33", text:"#F0EDE6", textMuted:"#8A8880", textDim:"#5A5855",
-    red:"#E05252", green:"#52C07A", blue:"#5290E0", purple:"#9B72E0",
-    sombra:"rgba(0,0,0,.45)", botaoTexto:"#0E0E0F",
-  },
-  medio: {
-    nome: "Intermédio",
-    gold1:"#C9A84C", gold2:"#E8C96A", gold3:"#F5E199", goldDark:"#8B6914",
-    bg:"#1C1C20", surface:"#24242A", surface2:"#2C2C33", surface3:"#35353D",
-    border:"#3E3E47", text:"#F0EDE6", textMuted:"#9A968C", textDim:"#6E6A64",
-    red:"#E05252", green:"#52C07A", blue:"#5290E0", purple:"#9B72E0",
-    sombra:"rgba(0,0,0,.35)", botaoTexto:"#14141A",
-  },
-  claro: {
-    nome: "Claro",
-    gold1:"#7A5C12", gold2:"#8B6914", gold3:"#A6851F", goldDark:"#5C4410",
-    bg:"#F3EDE4", surface:"#FBF8F3", surface2:"#FFFFFF", surface3:"#EDE6DA",
-    border:"#DDD4C6", text:"#2E2A26", textMuted:"#6B655B", textDim:"#8A8378",
-    red:"#C23B3B", green:"#2F7347", blue:"#2F6BB5", purple:"#7049B8",
-    sombra:"rgba(60,50,35,.14)", botaoTexto:"#FBF8F3",
-  },
-};
-
-const TEMA_GUARDADO = (() => {
-  try { const t = localStorage.getItem("magna-tema"); return TEMAS[t] ? t : "escuro"; }
-  catch (e) { return "escuro"; }
-})();
-
-// Objecto mutável: os estilos inline lêem-no a cada render,
-// por isso mudar as propriedades muda a aplicação inteira.
-const G = { ...TEMAS[TEMA_GUARDADO] };
-
-const aplicarTema = (id) => {
-  if (!TEMAS[id]) return;
-  Object.assign(G, TEMAS[id]);
-  try { localStorage.setItem("magna-tema", id); } catch (e) {}
 };
 
 // ── User store (dynamic) ──────────────────────────────────────
@@ -4604,7 +4561,9 @@ const GestaoUtilizadores = ({currentUser}) => {
   const [erro, setErro]     = useState("");
   const [info, setInfo]     = useState("");
 
-  const isAdmin = currentUser.role === "admin";
+  // Só o administrador cria, edita e elimina utilizadores.
+  // O CEO vê a lista mas não lhe mexe.
+  const isAdmin = ehAdmin(currentUser);
 
   // Carregar utilizadores da BD
   useEffect(() => {
@@ -4688,7 +4647,7 @@ const GestaoUtilizadores = ({currentUser}) => {
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                 <p style={{fontWeight:500,fontSize:15}}>{u.nome}</p>
                 {u.id === currentUser.id && <span style={{fontSize:10,background:`${G.gold1}20`,color:G.gold1,padding:"1px 7px",borderRadius:10,fontWeight:600}}>TU</span>}
-                <span style={{fontSize:10,background:u.role==="admin"?`${G.purple}20`:`${G.blue}20`,color:u.role==="admin"?G.purple:G.blue,padding:"1px 7px",borderRadius:10,fontWeight:600,textTransform:"uppercase"}}>{u.role==="admin"?"Admin":"Agente"}</span>
+                <span style={{fontSize:10,background:`${corRole(u.role)}20`,color:corRole(u.role),padding:"1px 7px",borderRadius:10,fontWeight:600,textTransform:"uppercase"}}>{nomeRole(u.role)}</span>
               </div>
               <p style={{fontSize:13,color:G.textMuted}}>{u.cargo} · {u.email}</p>
             </div>
@@ -4731,9 +4690,13 @@ const GestaoUtilizadores = ({currentUser}) => {
             </Field>
             <Field label="Permissão">
               <select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}>
-                <option value="agente">Agente</option>
-                <option value="admin">Administrador</option>
+                {ROLES.map(r=><option key={r.id} value={r.id}>{r.nome}</option>)}
               </select>
+              <p style={{fontSize:11,color:G.textDim,marginTop:5,lineHeight:1.5}}>
+                {form.role==="admin" && "Acesso total, incluindo gestão de utilizadores."}
+                {form.role==="ceo"   && "Chat interno e comentários. Não gere utilizadores."}
+                {form.role==="agente"&& "Trabalho corrente. Sem chat interno nem comentários."}
+              </p>
             </Field>
             <div style={{gridColumn:"1/-1"}}>
               <Field label="Inicial do avatar (opcional)"><input value={form.avatar} onChange={e=>setForm(p=>({...p,avatar:e.target.value.charAt(0).toUpperCase()}))} placeholder="Ex: A" maxLength={1}/></Field>
@@ -5923,6 +5886,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,on
 	</button>
       </div>
       <Interesses modo="imovel" imovel={imovel} clientes={clientes} user={userAtual} mob={mob}/>
+      <Comentarios tipo="imovel" registoId={imovel.id} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -6388,6 +6352,7 @@ const ClienteDetalhe = ({cliente,onClose,onEdit,onDelete,imoveis=[],mob,userAtua
       </div>
           {bcftCli && <GerarBCFT pessoa={c} qualidade={c.interesse==="Comprar"?"Comprador":c.interesse==="Arrendar"?"Arrendatário":"Comprador"} user={userAtual} onClose={()=>setBcftCli(false)}/>}
       <Interesses modo="cliente" cliente={c} imoveis={imoveis} user={userAtual} mob={mob}/>
+      <Comentarios tipo="cliente" registoId={c.id} user={userAtual} mob={mob}/>
     </Modal>
   );
 };
@@ -8244,6 +8209,10 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Chat interno — só sócias e administrador. Vive fora das
+          páginas para a conversa não fechar ao mudar de separador. */}
+      <Chat user={user} mob={mob}/>
     </>
   );
 }

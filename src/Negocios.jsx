@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { dbInteresses, uploadDocumento } from "./db.js";
 import { ESTADOS, gerarChecklist, lerDocumentos } from "./Interesses.jsx";
+import Comentarios from "./Comentarios";
 
 /* ═══════════════════════════════════════════════════════════
    NEGÓCIOS — processos em proposta, reservado ou fechado
@@ -460,6 +461,8 @@ export default function Negocios({ mob = false, user }) {
                       value={n.notas || ""} onChange={e => setLista(l => l.map(x => x.id === n.id ? { ...x, notas: e.target.value } : x))}
                       onBlur={e => guardarCampo(n, "notas", e.target.value)} />
                   </div>
+
+                  <Comentarios tipo="negocio" registoId={n.id} user={user} mob={mob}/>
 
                   <button className="ng-btn" onClick={() => setAberto(null)}>Fechar</button>
                 </div>

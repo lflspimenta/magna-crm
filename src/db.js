@@ -81,6 +81,41 @@ export const dbInteresses = {
 export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
 export const dbLeadsHabitar = makeCRUD('leads_habitar', {}, F_LEADS_HABITAR);
 
+// ── Comentários internos no registo ───────────────────────────
+// Presos a um imóvel, cliente ou negócio. A leitura é travada do
+// lado da base de dados (ver magna-comentarios.sql) — o filtro no
+// frontend é só conforto, não é a segurança.
+export const dbComentarios = {
+  async porRegisto(tipo, registoId) {
+    if (!supa) return [];
+    const { data, error } = await supa.from('comentarios')
+      .select('*')
+      .eq('tipo', tipo)
+      .eq('registo_id', String(registoId))
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  async criar({ tipo, registoId, autorId, autorNome, autorAvatar, texto }) {
+    if (!supa) return null;
+    const { data, error } = await supa.from('comentarios').insert({
+      tipo,
+      registo_id: String(registoId),
+      autor_id: autorId ? String(autorId) : null,
+      autor_nome: autorNome,
+      autor_avatar: autorAvatar || null,
+      texto,
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  async remover(id) {
+    if (!supa) return;
+    const { error } = await supa.from('comentarios').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+};
+
 export const dbUtilizadores = {
   async signIn(email, password) { const { data, error } = await supa.auth.signInWithPassword({ email, password }); if (error) throw new Error(error.message); const profile = await dbUtilizadores.getProfile(data.user.id); return { ...data.user, ...profile, authId: data.user.id }; },
   async signOut() { await supa.auth.signOut(); },
