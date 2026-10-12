@@ -8,6 +8,7 @@ import Interesses from "./Interesses";
 import { TEMAS, TEMA_GUARDADO, G, aplicarTema, ROLES, ehAdmin, ehSocio, nomeRole, corRole } from "./tema.js";
 import Chat from "./Chat";
 import Comentarios from "./Comentarios";
+import { PRE_WRAP, escaparHtml, paragrafosHtml, normalizarImportado } from "./texto.js";
 import { SEM_DONO, temDono, eMinha, donoDe, primeiroNome, camposDono, novaTarefaDe, filtrarTarefas, contarTarefas } from "./tarefas.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
@@ -3903,7 +3904,7 @@ h2{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:#
 <div class="grid2" style="margin-top:10px">
   ${[["Distrito",ang.distrito],["Concelho",ang.concelho],["Freguesia",ang.freguesia||"—"],["Morada do Imóvel",ang.morada||"—"]].map(([l,v])=>`<div class="field"><div class="field-label">${l}</div><div class="field-value">${v||"—"}</div></div>`).join("")}
 </div>
-${ang.descricao?`<div class="field" style="margin-top:10px"><div class="field-label">Descrição</div><div class="field-value" style="font-size:13px;color:#555">${ang.descricao}</div></div>`:""}
+${ang.descricao?`<div class="field" style="margin-top:10px"><div class="field-label">Descrição</div><div class="field-value" style="font-size:13px;color:#555">${paragrafosHtml(ang.descricao)}</div></div>`:""}
 
 <h2>3. Condições do Mandato</h2>
 <div class="highlight">
@@ -3992,7 +3993,7 @@ const AngariacaoDetalhe = ({ang,user,onClose,onEdit,onDelete,onImportar,onPDF,mo
             <div key={l}><p style={{fontSize:10,color:G.textDim,marginBottom:2,textTransform:"uppercase",letterSpacing:".3px"}}>{l}</p><p style={{fontSize:13,fontWeight:500}}>{v}</p></div>
           ))}
         </div>
-        {a.descricao && <p style={{fontSize:12,color:G.textMuted,marginTop:10,paddingTop:10,borderTop:`1px solid ${G.border}`,lineHeight:1.6}}>{a.descricao}</p>}
+        {a.descricao && <p style={{fontSize:12,color:G.textMuted,marginTop:10,paddingTop:10,borderTop:`1px solid ${G.border}`,lineHeight:1.6,...PRE_WRAP}}>{a.descricao}</p>}
       </div>
 
       {/* Datas */}
@@ -5219,7 +5220,7 @@ const ImportModal = ({onClose, onImport, urlInicial}) => {
     const referencia = refMatch ? refMatch[1] : "";
     const linhas = txt.split("\n").map(l=>l.trim()).filter(l=>l.length>10&&l.length<120);
     const titulo = linhas[0] || `${tipo}${quartos>0?" T"+quartos:""} ${concelho}`.trim() || "Imóvel Importado";
-    const descricao = txt.replace(/\s+/g," ").trim().slice(0,300);
+    const descricao = normalizarImportado(txt, 1200);
     return {titulo,tipo,finalidade,valor,area,quartos,casasBanho,bairro,concelho,distrito,cidade:concelho,descricao,referencia,foto:fotoMap[tipo]||"🏠",status:"Disponível",portal:detectPortal(url)||"Manual",encontrado:valor>0||area>0||quartos>0};
   };
 
@@ -5509,7 +5510,7 @@ const gerarFichaPDF=(imovel)=>{
   const m2=imovel.area>0?`${Math.round(imovel.valor/imovel.area).toLocaleString("pt-PT")} €/m²`:"";
   const win=window.open("","_blank");
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Ficha — ${imovel.titulo}</title>
+<title>Ficha — ${escaparHtml(imovel.titulo)}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -5532,7 +5533,8 @@ h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#
 .box{background:#f9f7f1;border-radius:8px;padding:12px 16px}
 .box .l{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
 .box .v{font-size:15px;font-weight:500;color:#1a1a1a}
-.desc{font-size:14px;line-height:1.8;color:#444}
+.desc{font-size:14px;line-height:1.8;color:#444;margin-bottom:12px}
+.desc:last-of-type{margin-bottom:0}
 .footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;text-align:center;font-size:11px;color:#999}
 @media print{.no-print{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .btn-print{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#8B6914,#C9A84C);color:#fff;border:none;padding:14px 28px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2)}
@@ -5540,8 +5542,8 @@ h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#
 <div class="page">
   <div class="header">
     <div class="logo-name">MAGNA</div><div class="logo-sub">Group Real Estate</div>
-    <div class="title">${imovel.titulo}</div>
-    <div class="meta">${loc}</div>
+    <div class="title">${escaparHtml(imovel.titulo)}</div>
+    <div class="meta">${escaparHtml(loc)}</div>
   </div>
   <div class="price">${precoStr}</div>
   <div class="price-sub">${m2}</div>
@@ -5562,7 +5564,7 @@ h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#
     <div class="box"><div class="l">Concelho</div><div class="v">${imovel.concelho||"—"}</div></div>
     <div class="box"><div class="l">Freguesia</div><div class="v">${imovel.freguesia||"—"}</div></div>
   </div>
-  ${imovel.descricao?`<h2>Descrição</h2><p class="desc">${imovel.descricao}</p>`:""}
+  ${imovel.descricao?`<h2>Descrição</h2>${paragrafosHtml(imovel.descricao,"desc")}`:""}
   <div class="footer">Magna Group Real Estate · Ficha gerada em ${new Date().toLocaleDateString("pt-PT")}</div>
 </div>
 <button class="btn-print no-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
@@ -5870,7 +5872,7 @@ const ImovelDetalhe=({imovel,onClose,onEdit,onMkt,onDelete,onVisita,onDossier,on
       {/* Descrição */}
       {imovel.descricao&&<div style={{marginBottom:18}}>
         <p style={{fontSize:11,color:G.textDim,marginBottom:6,textTransform:"uppercase",letterSpacing:".3px"}}>Descrição</p>
-        <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7}}>{imovel.descricao}</p>
+        <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7,...PRE_WRAP}}>{imovel.descricao}</p>
       </div>}
 
       {/* Ações */}
