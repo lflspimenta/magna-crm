@@ -10,8 +10,8 @@ import Chat from "./Chat";
 import Comentarios from "./Comentarios";
 import { PRE_WRAP, escaparHtml, paragrafosHtml, normalizarImportado } from "./texto.js";
 import { fileToBase64, callClaudeDoc } from "./ia.js";
-import { ReuniaoForm, ReuniaoDetalhe, useReunioes } from "./Reunioes";
-import { comoLinhaAgenda, nomeEstado, corEstado } from "./reunioes.js";
+import { CamposProspeccao, BlocoProspeccao, Pastilha, prepararProspeccao } from "./ProspeccaoBloco";
+import { TIPO_PROSPECCAO, ehProspeccao, dados as dadosProsp, estado as estadoProsp, validar as validarProsp, prospeccaoVazia, legendaLinha } from "./prospeccao.js";
 import { SEM_DONO, temDono, eMinha, donoDe, primeiroNome, camposDono, novaTarefaDe, filtrarTarefas, contarTarefas } from "./tarefas.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
@@ -7018,8 +7018,11 @@ const exportICS = (tarefa) => {
   const [,min2] = (tarefa.hora||'09:00').split(':');
   const dtEnd = toICSDate(tarefa.data, `${endH}:${min2}`);
   const uid = `magna-${tarefa.id}@magna.pt`;
-  const tIcoTxt = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
+  const tIcoTxt = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄","Prospecção":"🤝"};
   const emoji = tIcoTxt[tarefa.tipo]||"📌";
+  // Numa prospecção não há cliente escolhido de uma lista — o
+  // contacto é o que interessa ver no evento do calendário.
+  const comQuem = tarefa.cliente || dadosProsp(tarefa).contactoNome || "";
   const ics = [
     'BEGIN:VCALENDAR','VERSION:2.0',
     'PRODID:-//Magna Group Real Estate//CRM//PT',
@@ -7029,7 +7032,7 @@ const exportICS = (tarefa) => {
     `DTSTAMP:${toICSDate(new Date().toISOString().split('T')[0],'00:00')}`,
     `DTSTART:${dtStart}`,`DTEND:${dtEnd}`,
     `SUMMARY:${emoji} ${tarefa.titulo}`,
-    `DESCRIPTION:${tarefa.tipo}${tarefa.cliente?' — '+tarefa.cliente:''}\nPrioridade: ${tarefa.prioridade}${tarefa.local?'\nLocal: '+tarefa.local:''}\nMagna Group Real Estate`,
+    `DESCRIPTION:${tarefa.tipo}${comQuem?' — '+comQuem:''}\nPrioridade: ${tarefa.prioridade}${tarefa.local?'\nLocal: '+tarefa.local:''}\nMagna Group Real Estate`,
     `CATEGORIES:${tarefa.tipo.toUpperCase()}`,
     tarefa.local?`LOCATION:${tarefa.local}`:'',
     'STATUS:CONFIRMED','END:VEVENT','END:VCALENDAR'
@@ -7106,9 +7109,9 @@ const CalendarioMes = ({tarefas,mesAtual,setMesAtual,onDiaClick,diaDest}) => {
 const emptyT2={titulo:"",cliente:"",data:"2026-05-22",hora:"09:00",tipo:"Visita",prioridade:"Média",concluida:false,local:"",notas:"",atribuidoId:null,atribuidoA:""};
 
 // ── FICHA DETALHADA DA TAREFA ─────────────────────────────────
-const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,onAssumir,onLibertar,user,mob}) => {
+const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,onAssumir,onLibertar,onProspeccao,user,mob}) => {
   const t = tarefa;
-  const tIco = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
+  const tIco = {Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄","Prospecção":"🤝"};
   const priorCor = {Alta:G.red,Média:"#E0A052",Baixa:G.textDim};
   const dataFmt = new Date(t.data+"T12:00").toLocaleDateString("pt-PT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   return (
@@ -7177,51 +7180,16 @@ const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,onAs
         <p style={{fontSize:13,color:G.textMuted,lineHeight:1.7,background:G.surface2,padding:"12px 14px",borderRadius:8}}>{t.notas}</p>
       </div>}
 
+      {ehProspeccao(t) && <BlocoProspeccao tarefa={t} user={user} onMudar={onProspeccao} mob={mob}/>}
+
       {/* Ações */}
-      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16}}>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",borderTop:`1px solid ${G.border}`,paddingTop:16,marginTop:18}}>
         <button className="btn-gold" onClick={onToggle} style={{flex:mob?"1 1 100%":1}}><Ic n="check" s={14} c="#0E0E0F"/>{t.concluida?"Marcar Pendente":"Concluir"}</button>
         <button className="btn-ghost" onClick={onExportICS} style={{flex:mob?1:"none"}}><Ic n="calendar" s={14} c={G.blue}/>Calendário</button>
         <button className="btn-ghost" onClick={onEdit} style={{flex:mob?1:"none"}}><Ic n="edit" s={14} c={G.textMuted}/>Editar</button>
         <button className="btn-ghost" onClick={onDelete} style={{flex:mob?1:"none",borderColor:`${G.red}40`,color:G.red}}><Ic n="trash" s={14} c={G.red}/>Eliminar</button>
       </div>
     </Modal>
-  );
-};
-
-// Linha de reunião na agenda. Não tem círculo de concluir nem
-// botão de assumir: uma reunião fecha-se pela ficha, com o
-// motivo ou o desenvolvimento, e não com um visto.
-const LinhaReuniao = ({linha,user,onAbrir}) => {
-  const cor = G[corEstado(linha.estadoReuniao)] || G.blue;
-  const fechada = linha.concluida;
-  const minha = String(linha.atribuidoId||"") === String(user?.id||"\u0000");
-  return (
-    <div className="card" onClick={onAbrir}
-      style={{display:"flex",alignItems:"center",gap:10,padding:"13px 14px",cursor:"pointer",
-        opacity:fechada?.6:1,borderLeft:`3px solid ${cor}`}}>
-      <span style={{fontSize:18,flexShrink:0}}>🤝</span>
-      <div style={{flex:1,minWidth:0}}>
-        <p style={{fontSize:14,fontWeight:500,color:fechada?G.textDim:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{linha.titulo}</p>
-        <p style={{fontSize:11,color:G.textMuted,marginTop:1}}>{linha.cliente} · Prospecção</p>
-      </div>
-      {linha.atribuidoA && (
-        <span style={{flexShrink:0,display:"inline-flex",alignItems:"center",gap:6,padding:"3px 9px 3px 3px",borderRadius:12,
-          background:minha?`${G.gold1}18`:G.surface3,fontSize:11,color:minha?G.gold1:G.textMuted}}>
-          <span style={{width:19,height:19,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
-            background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,color:G.botaoTexto,
-            fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:11}}>
-            {linha.atribuidoA.charAt(0).toUpperCase()}
-          </span>
-          {linha.atribuidoA.split(" ")[0]}
-        </span>
-      )}
-      <div style={{textAlign:"right",flexShrink:0}}>
-        <p style={{fontSize:12,fontWeight:500,color:G.gold1}}>{linha.hora||"—"}</p>
-        <p style={{fontSize:10,color:G.textDim}}>{String(linha.data||"").split("-").reverse().join("/")}</p>
-      </div>
-      <span style={{flexShrink:0,fontSize:10,fontWeight:600,letterSpacing:".04em",textTransform:"uppercase",
-        padding:"2px 9px",borderRadius:10,background:`${cor}20`,color:cor}}>{nomeEstado(linha.estadoReuniao)}</span>
-    </div>
   );
 };
 
@@ -7239,12 +7207,6 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   const [diaDest,setDiaDest]=useState(null); // dia a destacar após criar
   const [detailT,setDetailT]=useState(null);
 
-  // Reuniões de prospecção — tabela própria, mesma agenda.
-  const reunioes = useReunioes(user);
-  const [modalR,setModalR] = useState(false);     // formulário
-  const [formR,setFormR]   = useState(null);
-  const [detailR,setDetailR] = useState(null);    // ficha
-
   // Só a direcção entrega tarefas a outra pessoa. Um consultor
   // assume as que estão livres, mas não passa trabalho a colegas.
   const podeAtribuir = ehSocio(user);
@@ -7258,14 +7220,9 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
     })();
   },[podeAtribuir]);
 
-  const { minhas: minhasPendentes, total: totalPendentes, livres } = contarTarefas([...tarefas, ...reunioes.lista.map(comoLinhaAgenda)], user);
+  const { minhas: minhasPendentes, total: totalPendentes, livres } = contarTarefas(tarefas, user);
 
-  // Tarefas e reuniões partilham a agenda. A reunião entra como
-  // linha equivalente, para os filtros e o calendário não terem
-  // de saber a diferença; a ficha é que é outra.
-  const itens = [...tarefas, ...reunioes.lista.map(comoLinhaAgenda)];
-  const filtered=filtrarTarefas(itens,{estado:filtro,quem,user});
-  const porId = (id) => reunioes.lista.find(x => String(x.id) === String(id));
+  const filtered=filtrarTarefas(tarefas,{estado:filtro,quem,user});
 
   // Atribuir, assumir e largar passam pela mesma porta.
   const mudarDono=(t,dono)=>{
@@ -7281,9 +7238,30 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   // formulário — é assim que se deixa trabalho no monte comum.
   const novaTarefa=(extra={})=>novaTarefaDe(emptyT2,user,extra);
 
-  const save=(irCalendario=false)=>{
+  const [erroForm,setErroForm]=useState("");
+  const [aGravar,setAGravar]=useState(false);
+
+  const save=async(irCalendario=false)=>{
     if(!form.titulo)return;
-    const nova={...form,id:editId||Date.now()};
+    if(form.tipo===TIPO_PROSPECCAO){
+      const faltas=validarProsp(form);
+      if(faltas.length){ setErroForm(`Falta preencher: ${faltas.join(", ")}.`); return; }
+    }
+    setErroForm(""); setAGravar(true);
+    let pronta=form;
+    try {
+      // Os anexos sobem antes de gravar, com uma chave gerada no
+      // cliente — assim a tarefa segue o caminho normal da base
+      // de dados, sem precisar do id que ela só dá depois.
+      if(form.tipo===TIPO_PROSPECCAO) pronta=await prepararProspeccao(form);
+    } catch(err){
+      setErroForm(err.message?.includes("Bucket not found")
+        ? "Falta criar o bucket `notas-reunioes` na Supabase (Storage → New bucket, público)."
+        : (err.message||"Não foi possível anexar os ficheiros."));
+      setAGravar(false); return;
+    }
+    setAGravar(false);
+    const nova={...pronta,id:editId||Date.now()};
     if(editId)setTarefas(p=>p.map(t=>t.id===editId?nova:t));
     else setTarefas(p=>[...p,nova]);
     setMod(false);setForm(novaTarefa());setEditId(null);
@@ -7299,7 +7277,7 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   const exportarEMostrar=(t)=>{exportICS(t);setIcsOk(t.id);setTimeout(()=>setIcsOk(null),3000);};
   const toggleConcluida=(t)=>setTarefas(p=>p.map(x=>x.id===t.id?{...x,concluida:!x.concluida}:x));
   const eliminar=(t)=>{if(!confirm("Eliminar esta tarefa?"))return;setTarefas(p=>p.filter(x=>x.id!==t.id));};
-  const tIco={Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄"};
+  const tIco={Visita:"🏠",Reunião:"👥",Ligação:"📞",Documento:"📄","Prospecção":"🤝"};
   const priorCor={Alta:G.red,Média:"#E0A052",Baixa:G.textDim};
   return(
     <div>
@@ -7322,8 +7300,6 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
           </p>
         </div>
         <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={()=>{setForm(novaTarefa());setEditId(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Criar":"Nova Tarefa"}</button>
-        <button className="btn-ghost" style={{padding:mob?"9px 14px":"10px 18px",fontSize:12,marginLeft:8}}
-          onClick={()=>{setFormR(null);setModalR(true);}}>🤝 {mob?"Reunião":"Nova Reunião"}</button>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -7342,7 +7318,7 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
 
       {vista==="calendario"&&(
         <>
-          <CalendarioMes tarefas={itens} mesAtual={mesAtual} setMesAtual={setMesAtual} onDiaClick={(date,tfs)=>setDiaModal({date,tfs})} diaDest={diaDest}/>
+          <CalendarioMes tarefas={tarefas} mesAtual={mesAtual} setMesAtual={setMesAtual} onDiaClick={(date,tfs)=>setDiaModal({date,tfs})} diaDest={diaDest}/>
           <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:`${G.blue}50`}}/><span style={{fontSize:11,color:G.textDim}}>Pendente</span></div>
             <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:`${G.textDim}40`}}/><span style={{fontSize:11,color:G.textDim}}>Concluída</span></div>
@@ -7354,15 +7330,13 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
       {vista==="lista"&&(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:G.textDim}}><p style={{fontSize:28,marginBottom:8}}>✓</p><p>Sem tarefas</p></div>}
-          {filtered.sort((a,b)=>a.data.localeCompare(b.data)).map(t=>t.ehReuniao?(
-            <LinhaReuniao key={t.id} linha={t} user={user} onAbrir={()=>setDetailR(porId(t.reuniaoId))}/>
-          ):(
+          {filtered.sort((a,b)=>a.data.localeCompare(b.data)).map(t=>(
             <div key={t.id} className="card" style={{display:"flex",alignItems:"center",gap:10,opacity:t.concluida?.55:1,padding:"13px 14px",cursor:"pointer"}} onClick={()=>setDetailT(t)}>
               <button onClick={e=>{e.stopPropagation();toggleConcluida(t);}} style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${t.concluida?G.green:G.border}`,background:t.concluida?G.green:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.concluida&&<Ic n="check" s={11} c="#fff"/>}</button>
               <span style={{fontSize:18,flexShrink:0}}>{tIco[t.tipo]||"📌"}</span>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:14,fontWeight:500,textDecoration:t.concluida?"line-through":"none",color:t.concluida?G.textDim:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.titulo}</p>
-                <p style={{fontSize:11,color:G.textMuted,marginTop:1}}>{t.cliente&&`${t.cliente} · `}{t.tipo}</p>
+                <p style={{fontSize:11,color:G.textMuted,marginTop:1}}>{legendaLinha(t) || `${t.cliente?t.cliente+" · ":""}${t.tipo}`}</p>
               </div>
               {/* Quem a tem. Livre e por concluir, dá para a assumir aqui mesmo. */}
               <div style={{flexShrink:0}} onClick={e=>e.stopPropagation()}>
@@ -7388,7 +7362,9 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
                 )}
               </div>
               <div style={{textAlign:"right",flexShrink:0}}><p style={{fontSize:12,fontWeight:500,color:G.gold1}}>{t.hora}</p><p style={{fontSize:10,color:G.textDim}}>{t.data.split("-").reverse().join("/")}</p></div>
-              <span className={`tag badge-${t.prioridade.toLowerCase().replace("é","e")}`} style={{flexShrink:0,fontSize:10}}>{t.prioridade}</span>
+              {ehProspeccao(t)
+                ? <span style={{flexShrink:0}}><Pastilha estado={estadoProsp(t)}/></span>
+                : <span className={`tag badge-${t.prioridade.toLowerCase().replace("é","e")}`} style={{flexShrink:0,fontSize:10}}>{t.prioridade}</span>}
               {icsOk===t.id&&<span style={{fontSize:10,color:G.green,flexShrink:0}}>✓ics</span>}
               <div style={{display:"flex",gap:2,flexShrink:0}} onClick={e=>e.stopPropagation()}>
                 <button title="Adicionar ao Calendário (.ics)" onClick={()=>exportarEMostrar(t)} style={{background:`${G.blue}15`,border:"none",borderRadius:6,padding:"5px 6px",cursor:"pointer",display:"flex"}}><Ic n="calendar" s={14} c={G.blue}/></button>
@@ -7436,7 +7412,13 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div style={{gridColumn:"1/-1"}}><Field label="Título *"><input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ex: Visita ao apartamento"/></Field></div>
             <Field label="Cliente"><select value={form.cliente} onChange={e=>setForm(p=>({...p,cliente:e.target.value}))}><option value="">Seleccionar...</option>{clientes.map(c=><option key={c.id}>{c.nome}</option>)}</select></Field>
-            <Field label="Tipo"><select value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))}><option>Visita</option><option>Reunião</option><option>Ligação</option><option>Documento</option></select></Field>
+            <Field label="Tipo"><select value={form.tipo} onChange={e=>{
+              const tipo=e.target.value;
+              setForm(p=>({...p,tipo,
+                // Ao passar a prospecção, nasce o bloco próprio; ao
+                // sair dele, não se apaga nada — fica lá se voltar.
+                prospeccao: tipo===TIPO_PROSPECCAO ? (p.prospeccao||prospeccaoVazia(user)) : p.prospeccao}));
+            }}><option>Visita</option><option>Reunião</option><option>Ligação</option><option>Documento</option><option>{TIPO_PROSPECCAO}</option></select></Field>
             <Field label="Data"><input type="date" value={form.data} onChange={e=>setForm(p=>({...p,data:e.target.value}))}/></Field>
             <Field label="Hora"><input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))}/></Field>
             <Field label="Prioridade"><select value={form.prioridade} onChange={e=>setForm(p=>({...p,prioridade:e.target.value}))}><option>Alta</option><option>Média</option><option>Baixa</option></select></Field>
@@ -7466,6 +7448,7 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
                 </Field>
               )}
             </div>
+            {form.tipo===TIPO_PROSPECCAO && <CamposProspeccao form={form} setForm={setForm} user={user}/>}
             <div style={{gridColumn:"1/-1"}}><Field label="Local (opcional)"><input value={form.local||""} onChange={e=>setForm(p=>({...p,local:e.target.value}))} placeholder="Ex: Rua de Santa Catarina, Porto"/></Field></div>
             <div style={{gridColumn:"1/-1"}}><Field label="Notas (opcional)"><textarea rows={2} value={form.notas||""} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Detalhes adicionais..."/></Field></div>
           </div>
@@ -7478,36 +7461,22 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
               {icsOk===form.id?"✓ Exportado":"Exportar .ics"}
             </button>
           </div>
+          {erroForm && <p style={{fontSize:12,color:G.red,marginTop:12,lineHeight:1.5}}>{erroForm}</p>}
           <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:14,flexWrap:"wrap"}}>
-            <button className="btn-ghost" onClick={()=>setMod(false)}>Cancelar</button>
+            <button className="btn-ghost" onClick={()=>{setErroForm("");setMod(false);}}>Cancelar</button>
             {!editId && (
-              <button className="btn-ghost" style={{borderColor:G.blue,color:G.blue}} onClick={()=>save(true)} disabled={!form.titulo}>
+              <button className="btn-ghost" style={{borderColor:G.blue,color:G.blue}} onClick={()=>save(true)} disabled={!form.titulo||aGravar}>
                 <Ic n="calendar" s={14} c={G.blue}/>Ver no Calendário
               </button>
             )}
-            <button className="btn-gold" onClick={()=>save(false)} disabled={!form.titulo}>
-              {editId?"Guardar":"Criar Tarefa"}
+            <button className="btn-gold" onClick={()=>save(false)} disabled={!form.titulo||aGravar}>
+              {aGravar ? ((form.anexosPendentes||[]).length ? "A anexar…" : "A gravar…") : (editId?"Guardar":"Criar Tarefa")}
             </button>
           </div>
         </Modal>
       )}
-      {/* ── Reuniões de prospecção ── */}
-      {modalR && (
-        <Modal title={formR?.id?"Editar Reunião":"Nova Reunião de Prospecção"} onClose={()=>setModalR(false)}>
-          <ReuniaoForm reuniao={formR} user={user}
-            onGravar={async(r)=>{ await reunioes.gravar(r); setModalR(false); setFormR(null); }}
-            onCancelar={()=>{setModalR(false);setFormR(null);}}/>
-        </Modal>
-      )}
-      {detailR && (
-        <Modal title="" onClose={()=>setDetailR(null)}>
-          <ReuniaoDetalhe reuniao={detailR} user={user} mob={mob}
-            onMudar={async(campos)=>{ const g=await reunioes.actualizar(detailR.id,campos); setDetailR(p=>({...p,...g})); }}
-            onEditar={()=>{setFormR(detailR);setDetailR(null);setModalR(true);}}
-            onEliminar={async()=>{ if(!confirm("Eliminar esta reunião?"))return; await reunioes.eliminar(detailR.id); setDetailR(null); }}/>
-        </Modal>
-      )}
       {detailT && <TarefaDetalhe tarefa={detailT} user={user} onClose={()=>setDetailT(null)} onEdit={()=>{setForm(detailT);setEditId(detailT.id);setDetailT(null);setMod(true);}} onDelete={()=>{eliminar(detailT);setDetailT(null);}} onToggle={()=>{toggleConcluida(detailT);setDetailT(p=>({...p,concluida:!p.concluida}));}} onExportICS={()=>exportarEMostrar(detailT)}
+        onProspeccao={async(campos)=>{ setTarefas(p=>p.map(x=>x.id===detailT.id?{...x,...campos}:x)); setDetailT(p=>({...p,...campos})); }}
         onAssumir={()=>{const c=assumir(detailT);setDetailT(p=>({...p,...c}));}}
         onLibertar={()=>{const c=libertar(detailT);setDetailT(p=>({...p,...c}));}}
         mob={mob}/>}

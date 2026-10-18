@@ -14,7 +14,7 @@ const toDB = (obj, mapping, allowed) => { const out = { ...obj }; for (const [ap
 const F_IMOVEIS = ['titulo','tipo','finalidade','status','valor','area','quartos','casas_banho','bairro','distrito','concelho','cidade','freguesia','foto','fotos','descricao','destaque','publicado','proprietario_id', 'tipo_ativo', 'servico_gestao_arrendamento', 'servico_alojamento_local', 'servico_property_caretaker', 'servico_requalificacao', 'tem_projeto_aprovado', 'viabilidade_construtiva_pip', 'infraestruturas_basicas', 'topografia', 'avaliacao_ia'];
 const F_ANGARIACOES = ['prop_nome','prop_nif','prop_email','prop_telefone','prop_morada','tipo','finalidade','valor','area','quartos','casas_banho','descricao','morada','distrito','concelho','freguesia','cidade','tipo_mandato','comissao','comissao_fixa','prazo','data_inicio','estado','sig_prop','sig_agente','proprietario_id'];
 const F_CLIENTES = ['nome','email','telefone','interesse','orcamento','temperatura','bairros','tipologia','obs', 'perfil_cliente', 'requisitos_especificos'];
-const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas','atribuido_id','atribuido_a'];
+const F_TAREFAS = ['titulo','cliente','data','hora','tipo','prioridade','concluida','local','notas','atribuido_id','atribuido_a','prospeccao'];
 const F_UTILIZADORES = ['email','password','nome','cargo','avatar','role'];
 const F_PROPRIETARIOS = ['nome','nif','email','telefone','morada','notas','estado'];
 const F_DOCS_PROP = ['proprietario_id','imovel_id','tipo','nome_ficheiro','url','validade','notas','dados_extraidos'];
@@ -79,17 +79,10 @@ export const dbInteresses = {
     return fromDB(data, M_INTERESSES);
   }
 };
-// ── Reuniões de prospecção ────────────────────────────────────
-// Encontros com quem ainda não é cliente. O contacto é texto
-// livre de propósito: não há lista por onde o escolher.
-const F_REUNIOES = ['titulo','data','hora','local','contacto_nome','contacto_telefone','contacto_email','origem','preparacao','desfecho','estado','historico','notas','criado_por_id','criado_por','atribuido_id','atribuido_a','lead_tabela','lead_id','promovida_em'];
-const M_REUNIOES = {
-  contactoNome: 'contacto_nome', contactoTelefone: 'contacto_telefone', contactoEmail: 'contacto_email',
-  criadoPorId: 'criado_por_id', criadoPor: 'criado_por',
-  atribuidoId: 'atribuido_id', atribuidoA: 'atribuido_a',
-  leadTabela: 'lead_tabela', leadId: 'lead_id', promovidaEm: 'promovida_em',
-};
-export const dbReunioes = makeCRUD('reunioes', M_REUNIOES, F_REUNIOES, { orderBy: 'data', ascending: true });
+// ── Prospecção ────────────────────────────────────────────────
+// A reunião de prospecção é uma tarefa de tipo 'Prospecção'; o
+// que lhe é próprio vive na coluna `prospeccao` (jsonb). Não há
+// tabela separada — ver magna-prospeccao.sql.
 
 // Folhas de notas manuscritas. Bucket próprio: não se misturam
 // com as certidões e cadernetas dos imóveis.
