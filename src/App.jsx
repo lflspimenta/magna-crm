@@ -2726,6 +2726,24 @@ label{font-size:12px;color:${G.textMuted};display:block;margin-bottom:5px;letter
 .bnav-item.active .bnav-icon{color:${G.gold1}}
 .bnav-icon{color:${G.textDim};transition:color .15s;display:flex}
 .bnav-dot{position:absolute;top:8px;right:calc(50% - 12px);width:8px;height:8px;background:${G.red};border-radius:50%;border:2px solid ${G.surface}}
+/* Barra inferior: quatro entradas fixas e um "Mais". Doze
+   pediam 571px, que nenhum telemóvel tem. */
+.bnav-item{min-width:0}
+.bnav-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folha-fundo{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:250;animation:fadeIn .18s ease}
+.folha{position:fixed;left:0;right:0;bottom:0;z-index:260;background:${G.surface};border-top:1px solid ${G.border};
+  border-radius:18px 18px 0 0;padding:10px 16px calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -10px 40px ${G.sombra};animation:subir .22s cubic-bezier(.2,.8,.3,1);max-height:78vh;overflow-y:auto}
+@keyframes subir{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.folha-pega{width:38px;height:4px;border-radius:2px;background:${G.border};margin:0 auto 12px}
+.folha-titulo{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:${G.textDim};margin-bottom:12px}
+.folha-grelha{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.folha-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  padding:16px 6px;border-radius:12px;background:${G.surface2};border:1px solid transparent;cursor:pointer;min-height:84px}
+.folha-item span{font-size:11.5px;color:${G.textMuted};text-align:center;line-height:1.3}
+.folha-item.active{background:${G.gold1}18;border-color:${G.gold1}55}
+.folha-item.active span{color:${G.gold1}}
+.folha-pinta{position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%}
 .bnav-dot-purple{position:absolute;top:6px;right:calc(50% - 14px);width:6px;height:6px;background:${G.purple};border-radius:50%}
 
 /* ── MOBILE MODAL (sheet) ── */
@@ -8151,6 +8169,9 @@ export default function App() {
   const [loading,setLoading]   = useState(false);
   const [bootLoading,setBootLoading] = useState(true);
   const [tema, setTema]        = useState(TEMA_GUARDADO);
+  // Folha do "Mais" no telemóvel. Tem de estar aqui em cima:
+  // um hook depois de um return condicional parte a aplicação.
+  const [folhaMais,setFolhaMais] = useState(false);
   const mob                    = useIsMobile();
 
   // Recuperar sessão no arranque
@@ -8269,6 +8290,14 @@ export default function App() {
   {id:"prospeccao",  label:"IA",           icon:"spark"},
 ];
 
+  // No telemóvel as doze entradas pediam 571px de barra — mais do
+  // que qualquer iPhone tem, e o que passava ficava fora do ecrã
+  // sem forma de lá chegar. Quatro fixas e um "Mais" com o resto.
+  const FIXOS = ["dashboard","imoveis","clientes","agenda"];
+  const navFixo = FIXOS.map(id => nav.find(n => n.id === id)).filter(Boolean);
+  const navMais = nav.filter(n => !FIXOS.includes(n.id));
+  const estouNoMais = navMais.some(n => n.id === page) || page === "utilizadores";
+
   // O número no menu é o teu: é o que tens para fazer. O total da
   // empresa fica no cabeçalho da Agenda, para quem precisa dele.
   const pendentes = tarefas.filter(t=>!t.concluida&&eMinha(t,user)).length;
@@ -8338,7 +8367,9 @@ export default function App() {
             <Logo/>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <SelectorTema tema={tema} onTroca={trocarTema} mob={true}/>
-              <button onClick={()=>setPage("utilizadores")} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:3}}>
+              {/* Lia-se como menu e abria a gestão de utilizadores.
+                  Agora abre o menu, que é o que aparenta. */}
+              <button onClick={()=>setFolhaMais(true)} title="Menu" style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",flexDirection:"column",gap:3}}>
                 <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
                 <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
                 <div style={{width:18,height:2,background:G.textMuted,borderRadius:1}}/>
@@ -8368,17 +8399,54 @@ export default function App() {
 
           {/* Bottom navigation */}
           <div className="bottom-nav">
-            {nav.map(n=>(
-              <div key={n.id} className={`bnav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}>
+            {navFixo.map(n=>(
+              <div key={n.id} className={`bnav-item${page===n.id?" active":""}`} onClick={()=>{setFolhaMais(false);setPage(n.id);}}>
                 <div className="bnav-icon" style={{color:page===n.id?G.gold1:G.textDim}}>
                   <Ic n={n.icon} s={22} c={page===n.id?G.gold1:G.textDim}/>
                 </div>
                 <span className="bnav-label" style={{color:page===n.id?G.gold1:G.textDim}}>{n.label}</span>
                 {n.id==="agenda"&&pendentes>0&&<div className="bnav-dot"/>}
-                {n.id==="prospeccao"&&<div className="bnav-dot-purple"/>}
               </div>
             ))}
+            {/* "Mais": acende quando a página aberta é uma das de
+                dentro, para não parecer que não se está em lado nenhum. */}
+            <div className={`bnav-item${estouNoMais?" active":""}`} onClick={()=>setFolhaMais(true)}>
+              <div className="bnav-icon" style={{color:estouNoMais?G.gold1:G.textDim}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={estouNoMais?G.gold1:G.textDim} strokeWidth="2" strokeLinecap="round">
+                  <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+                  <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+                  <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+                </svg>
+              </div>
+              <span className="bnav-label" style={{color:estouNoMais?G.gold1:G.textDim}}>Mais</span>
+            </div>
           </div>
+
+          {/* Folha com o resto do menu */}
+          {folhaMais && (
+            <>
+              <div className="folha-fundo" onClick={()=>setFolhaMais(false)}/>
+              <div className="folha">
+                <div className="folha-pega"/>
+                <p className="folha-titulo">Mais</p>
+                <div className="folha-grelha">
+                  {navMais.map(n=>(
+                    <div key={n.id} className={`folha-item${page===n.id?" active":""}`}
+                      onClick={()=>{setPage(n.id);setFolhaMais(false);}}>
+                      <Ic n={n.icon} s={22} c={page===n.id?G.gold1:G.textMuted}/>
+                      <span>{n.id==="prospeccao"?"Prospecção IA":n.label}</span>
+                      {n.id==="prospeccao"&&<i className="folha-pinta" style={{background:G.purple}}/>}
+                    </div>
+                  ))}
+                  <div className={`folha-item${page==="utilizadores"?" active":""}`}
+                    onClick={()=>{setPage("utilizadores");setFolhaMais(false);}}>
+                    <Ic n="users" s={22} c={page==="utilizadores"?G.gold1:G.textMuted}/>
+                    <span>Utilizadores</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
