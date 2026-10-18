@@ -295,7 +295,8 @@ function AnexosGuardados({ tarefa, onMudar }) {
 /* ═══════════════════════════════════════════════════════════
    CAMPOS NO FORMULÁRIO DA TAREFA
    ═══════════════════════════════════════════════════════════ */
-export function CamposProspeccao({ form, setForm, user }) {
+/** Toma o lugar do dropdown de Cliente: aqui o nome escreve-se. */
+export function CamposContacto({ form, setForm, user }) {
   const d = dados(form);
   const por = (k) => ({
     value: d[k] || "",
@@ -311,22 +312,30 @@ export function CamposProspeccao({ form, setForm, user }) {
 
   return (
     <>
-      <div style={{ gridColumn: "1/-1", borderTop: `1px solid ${G.border}`, paddingTop: 12, marginTop: 2 }}>
-        <p style={{ fontSize: 11, color: G.gold1, textTransform: "uppercase", letterSpacing: ".3px", marginBottom: 6 }}>Contacto</p>
-        <p style={{ fontSize: 11.5, color: G.textDim, marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ gridColumn: "1/-1", marginTop: 2 }}>
+        <p style={{ fontSize: 11, color: G.gold1, textTransform: "uppercase", letterSpacing: ".3px", marginBottom: 5 }}>Contacto</p>
+        <p style={{ fontSize: 11.5, color: G.textDim, lineHeight: 1.5 }}>
           Escrito à mão — ainda não é cliente, por isso não há lista por onde o escolher.
         </p>
       </div>
-
       <Campo etiqueta="Nome *"><Texto {...por("contactoNome")} placeholder="Nome da pessoa ou empresa" /></Campo>
       <Campo etiqueta="Telefone"><Texto {...por("contactoTelefone")} placeholder="912 345 678" /></Campo>
       <Campo etiqueta="E-mail"><Texto {...por("contactoEmail")} placeholder="nome@exemplo.pt" /></Campo>
       <Campo etiqueta="Origem"><Texto {...por("origem")} placeholder="Quem indicou, de onde veio" /></Campo>
+    </>
+  );
+}
 
+/** Preparação e anexos: vão para o fim, depois do quando e do onde. */
+export function CamposPreparacao({ form, setForm }) {
+  const d = dados(form);
+  return (
+    <>
       <Campo etiqueta="Preparação — o que vou propor, o que quero saber" largo>
-        <Area rows={4} {...por("preparacao")} placeholder="Pontos a levar, perguntas a fazer, o que é preciso confirmar…" />
+        <Area rows={4} value={d.preparacao || ""}
+          onChange={(e) => setForm(p => ({ ...p, prospeccao: { ...dados(p), preparacao: e.target.value } }))}
+          placeholder="Pontos a levar, perguntas a fazer, o que é preciso confirmar…" />
       </Campo>
-
       <div style={{ gridColumn: "1/-1", borderTop: `1px solid ${G.border}`, paddingTop: 12, marginTop: 2 }}>
         <AnexosPendentes pendentes={form.anexosPendentes || []}
           onMudar={(lista) => setForm(p => ({ ...p, anexosPendentes: lista }))} />

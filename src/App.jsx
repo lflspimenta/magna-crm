@@ -10,7 +10,7 @@ import Chat from "./Chat";
 import Comentarios from "./Comentarios";
 import { PRE_WRAP, escaparHtml, paragrafosHtml, normalizarImportado } from "./texto.js";
 import { fileToBase64, callClaudeDoc } from "./ia.js";
-import { CamposProspeccao, BlocoProspeccao, Pastilha, prepararProspeccao } from "./ProspeccaoBloco";
+import { CamposContacto, CamposPreparacao, BlocoProspeccao, Pastilha, prepararProspeccao } from "./ProspeccaoBloco";
 import { TIPO_PROSPECCAO, ehProspeccao, dados as dadosProsp, estado as estadoProsp, validar as validarProsp, prospeccaoVazia, legendaLinha } from "./prospeccao.js";
 import { SEM_DONO, temDono, eMinha, donoDe, primeiroNome, camposDono, novaTarefaDe, filtrarTarefas, contarTarefas } from "./tarefas.js";
 // ── Funil de Negócios ─────────────────────────────────────────
@@ -7410,8 +7410,7 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
       {modal&&(
         <Modal title={editId?"Editar Tarefa":"Nova Tarefa"} onClose={()=>setMod(false)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div style={{gridColumn:"1/-1"}}><Field label="Título *"><input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ex: Visita ao apartamento"/></Field></div>
-            <Field label="Cliente"><select value={form.cliente} onChange={e=>setForm(p=>({...p,cliente:e.target.value}))}><option value="">Seleccionar...</option>{clientes.map(c=><option key={c.id}>{c.nome}</option>)}</select></Field>
+            <div style={{gridColumn:"1/-1"}}><Field label={form.tipo===TIPO_PROSPECCAO?"Assunto *":"Título *"}><input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder={form.tipo===TIPO_PROSPECCAO?"Ex: Apresentação à Nova Vaga":"Ex: Visita ao apartamento"}/></Field></div>
             <Field label="Tipo"><select value={form.tipo} onChange={e=>{
               const tipo=e.target.value;
               setForm(p=>({...p,tipo,
@@ -7419,6 +7418,13 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
                 // sair dele, não se apaga nada — fica lá se voltar.
                 prospeccao: tipo===TIPO_PROSPECCAO ? (p.prospeccao||prospeccaoVazia(user)) : p.prospeccao}));
             }}><option>Visita</option><option>Reunião</option><option>Ligação</option><option>Documento</option><option>{TIPO_PROSPECCAO}</option></select></Field>
+
+            {/* Numa prospecção o nome escreve-se à mão: o contacto
+                ainda não é cliente, e dois sítios para o mesmo nome
+                só confundem. O dropdown dá lugar a estes campos. */}
+            {form.tipo===TIPO_PROSPECCAO
+              ? <CamposContacto form={form} setForm={setForm} user={user}/>
+              : <Field label="Cliente"><select value={form.cliente} onChange={e=>setForm(p=>({...p,cliente:e.target.value}))}><option value="">Seleccionar...</option>{clientes.map(c=><option key={c.id}>{c.nome}</option>)}</select></Field>}
             <Field label="Data"><input type="date" value={form.data} onChange={e=>setForm(p=>({...p,data:e.target.value}))}/></Field>
             <Field label="Hora"><input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))}/></Field>
             <Field label="Prioridade"><select value={form.prioridade} onChange={e=>setForm(p=>({...p,prioridade:e.target.value}))}><option>Alta</option><option>Média</option><option>Baixa</option></select></Field>
@@ -7448,8 +7454,8 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
                 </Field>
               )}
             </div>
-            {form.tipo===TIPO_PROSPECCAO && <CamposProspeccao form={form} setForm={setForm} user={user}/>}
             <div style={{gridColumn:"1/-1"}}><Field label="Local (opcional)"><input value={form.local||""} onChange={e=>setForm(p=>({...p,local:e.target.value}))} placeholder="Ex: Rua de Santa Catarina, Porto"/></Field></div>
+            {form.tipo===TIPO_PROSPECCAO && <CamposPreparacao form={form} setForm={setForm}/>}
             <div style={{gridColumn:"1/-1"}}><Field label="Notas (opcional)"><textarea rows={2} value={form.notas||""} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Detalhes adicionais..."/></Field></div>
           </div>
           <div style={{background:`${G.blue}10`,border:`1px solid ${G.blue}30`,borderRadius:8,padding:"11px 14px",marginTop:4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
