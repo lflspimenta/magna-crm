@@ -79,6 +79,37 @@ export const dbInteresses = {
     return fromDB(data, M_INTERESSES);
   }
 };
+// ── Reuniões de prospecção ────────────────────────────────────
+// Encontros com quem ainda não é cliente. O contacto é texto
+// livre de propósito: não há lista por onde o escolher.
+const F_REUNIOES = ['titulo','data','hora','local','contacto_nome','contacto_telefone','contacto_email','origem','preparacao','desfecho','estado','historico','notas','criado_por_id','criado_por','atribuido_id','atribuido_a','lead_tabela','lead_id','promovida_em'];
+const M_REUNIOES = {
+  contactoNome: 'contacto_nome', contactoTelefone: 'contacto_telefone', contactoEmail: 'contacto_email',
+  criadoPorId: 'criado_por_id', criadoPor: 'criado_por',
+  atribuidoId: 'atribuido_id', atribuidoA: 'atribuido_a',
+  leadTabela: 'lead_tabela', leadId: 'lead_id', promovidaEm: 'promovida_em',
+};
+export const dbReunioes = makeCRUD('reunioes', M_REUNIOES, F_REUNIOES, { orderBy: 'data', ascending: true });
+
+// Folhas de notas manuscritas. Bucket próprio: não se misturam
+// com as certidões e cadernetas dos imóveis.
+export async function uploadNotaReuniao(file, reuniaoId) {
+  if (!supa) throw new Error('Base de dados indisponível.');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const name = `${reuniaoId || 'nova'}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await supa.storage.from('notas-reunioes').upload(name, file);
+  if (error) throw new Error(error.message);
+  return supa.storage.from('notas-reunioes').getPublicUrl(name).data.publicUrl;
+}
+export async function deleteNotaReuniao(url) {
+  if (!supa) return;
+  // O caminho é `<id>/<ficheiro>`: são precisos os dois últimos
+  // segmentos, não só o nome do ficheiro.
+  const partes = String(url).split('/notas-reunioes/');
+  const caminho = partes[1] || String(url).split('/').slice(-2).join('/');
+  await supa.storage.from('notas-reunioes').remove([decodeURIComponent(caminho)]);
+}
+
 export const dbLeadsAquisicao = makeCRUD('leads_aquisicao', {}, F_LEADS_AQUISICAO);
 export const dbLeadsHabitar = makeCRUD('leads_habitar', {}, F_LEADS_HABITAR);
 

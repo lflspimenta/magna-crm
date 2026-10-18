@@ -9,6 +9,9 @@ import { TEMAS, TEMA_GUARDADO, G, aplicarTema, ROLES, ehAdmin, ehSocio, nomeRole
 import Chat from "./Chat";
 import Comentarios from "./Comentarios";
 import { PRE_WRAP, escaparHtml, paragrafosHtml, normalizarImportado } from "./texto.js";
+import { fileToBase64, callClaudeDoc } from "./ia.js";
+import { ReuniaoForm, ReuniaoDetalhe, useReunioes } from "./Reunioes";
+import { comoLinhaAgenda, nomeEstado, corEstado } from "./reunioes.js";
 import { SEM_DONO, temDono, eMinha, donoDe, primeiroNome, camposDono, novaTarefaDe, filtrarTarefas, contarTarefas } from "./tarefas.js";
 // ── Funil de Negócios ─────────────────────────────────────────
 function Funil({ mob }) {
@@ -3073,30 +3076,6 @@ const getApiKey = () => _apiKey;
 
 // ── Extracção de dados de documentos (Fase 2 - Proprietários) ──
 // Envia um documento (PDF/imagem) em base64 e devolve o texto da resposta
-const callClaudeDoc = async (base64Data, mediaType, prompt) => {
-  const isPdf = mediaType === "application/pdf";
-  const contentBlock = isPdf
-    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } }
-    : { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } };
-
-  const body = JSON.stringify({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }],
-  });
-
-  const res = await fetch("/api/claude", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || String(data.error));
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-  if (!text) throw new Error("Resposta vazia da análise.");
-  return text;
-};
-
 // Prompts de extracção por tipo de documento
 const PROMPTS_EXTRACAO = {
   "Caderneta Predial": "Extrai desta caderneta predial os seguintes dados em JSON (usa null se não encontrares): {\"artigo_matricial\":\"...\",\"fracao\":\"...\",\"area_total\":\"...\",\"area_privativa\":\"...\",\"afetacao\":\"...\",\"titulares\":[{\"nome\":\"...\",\"nif\":\"...\"}],\"morada_predio\":\"...\",\"data_emissao\":\"AAAA-MM-DD\"}. A data de emissão costuma aparecer no rodapé ou cabeçalho do documento. Responde APENAS com o JSON, sem markdown nem explicações.",
@@ -3108,14 +3087,6 @@ const PROMPTS_EXTRACAO = {
   "Licença de Utilização": "Extrai desta licença de utilização os seguintes dados em JSON (usa null se não encontrares): {\"numero_licenca\":\"...\",\"data_emissao\":\"AAAA-MM-DD\",\"camara_municipal\":\"...\",\"finalidade\":\"...\",\"morada\":\"...\"}. Responde APENAS com o JSON.",
   "Ficha Técnica de Habitação": "Extrai desta ficha técnica de habitação os seguintes dados em JSON (usa null se não encontrares): {\"numero_ficha\":\"...\",\"data\":\"AAAA-MM-DD\",\"morada\":\"...\",\"promotor\":\"...\"}. Responde APENAS com o JSON.",
 };
-
-// Converte um File em base64 (sem o prefixo data:)
-const fileToBase64 = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result.split(",")[1]);
-  reader.onerror = () => reject(new Error("Falha ao ler o ficheiro"));
-  reader.readAsDataURL(file);
-});
 
 const callClaude = async (prompt, model = "claude-sonnet-4-6", useSearch = true) => {
   const key = getApiKey();
@@ -7199,6 +7170,43 @@ const TarefaDetalhe = ({tarefa,onClose,onEdit,onDelete,onToggle,onExportICS,onAs
   );
 };
 
+// Linha de reunião na agenda. Não tem círculo de concluir nem
+// botão de assumir: uma reunião fecha-se pela ficha, com o
+// motivo ou o desenvolvimento, e não com um visto.
+const LinhaReuniao = ({linha,user,onAbrir}) => {
+  const cor = G[corEstado(linha.estadoReuniao)] || G.blue;
+  const fechada = linha.concluida;
+  const minha = String(linha.atribuidoId||"") === String(user?.id||"\u0000");
+  return (
+    <div className="card" onClick={onAbrir}
+      style={{display:"flex",alignItems:"center",gap:10,padding:"13px 14px",cursor:"pointer",
+        opacity:fechada?.6:1,borderLeft:`3px solid ${cor}`}}>
+      <span style={{fontSize:18,flexShrink:0}}>🤝</span>
+      <div style={{flex:1,minWidth:0}}>
+        <p style={{fontSize:14,fontWeight:500,color:fechada?G.textDim:G.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{linha.titulo}</p>
+        <p style={{fontSize:11,color:G.textMuted,marginTop:1}}>{linha.cliente} · Prospecção</p>
+      </div>
+      {linha.atribuidoA && (
+        <span style={{flexShrink:0,display:"inline-flex",alignItems:"center",gap:6,padding:"3px 9px 3px 3px",borderRadius:12,
+          background:minha?`${G.gold1}18`:G.surface3,fontSize:11,color:minha?G.gold1:G.textMuted}}>
+          <span style={{width:19,height:19,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+            background:`linear-gradient(135deg,${G.goldDark},${G.gold1})`,color:G.botaoTexto,
+            fontFamily:"'Cormorant Garamond',serif",fontWeight:700,fontSize:11}}>
+            {linha.atribuidoA.charAt(0).toUpperCase()}
+          </span>
+          {linha.atribuidoA.split(" ")[0]}
+        </span>
+      )}
+      <div style={{textAlign:"right",flexShrink:0}}>
+        <p style={{fontSize:12,fontWeight:500,color:G.gold1}}>{linha.hora||"—"}</p>
+        <p style={{fontSize:10,color:G.textDim}}>{String(linha.data||"").split("-").reverse().join("/")}</p>
+      </div>
+      <span style={{flexShrink:0,fontSize:10,fontWeight:600,letterSpacing:".04em",textTransform:"uppercase",
+        padding:"2px 9px",borderRadius:10,background:`${cor}20`,color:cor}}>{nomeEstado(linha.estadoReuniao)}</span>
+    </div>
+  );
+};
+
 const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   const [modal,setMod]=useState(false);
   const [form,setForm]=useState(emptyT2);
@@ -7213,6 +7221,12 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
   const [diaDest,setDiaDest]=useState(null); // dia a destacar após criar
   const [detailT,setDetailT]=useState(null);
 
+  // Reuniões de prospecção — tabela própria, mesma agenda.
+  const reunioes = useReunioes(user);
+  const [modalR,setModalR] = useState(false);     // formulário
+  const [formR,setFormR]   = useState(null);
+  const [detailR,setDetailR] = useState(null);    // ficha
+
   // Só a direcção entrega tarefas a outra pessoa. Um consultor
   // assume as que estão livres, mas não passa trabalho a colegas.
   const podeAtribuir = ehSocio(user);
@@ -7226,9 +7240,14 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
     })();
   },[podeAtribuir]);
 
-  const { minhas: minhasPendentes, total: totalPendentes, livres } = contarTarefas(tarefas, user);
+  const { minhas: minhasPendentes, total: totalPendentes, livres } = contarTarefas([...tarefas, ...reunioes.lista.map(comoLinhaAgenda)], user);
 
-  const filtered=filtrarTarefas(tarefas,{estado:filtro,quem,user});
+  // Tarefas e reuniões partilham a agenda. A reunião entra como
+  // linha equivalente, para os filtros e o calendário não terem
+  // de saber a diferença; a ficha é que é outra.
+  const itens = [...tarefas, ...reunioes.lista.map(comoLinhaAgenda)];
+  const filtered=filtrarTarefas(itens,{estado:filtro,quem,user});
+  const porId = (id) => reunioes.lista.find(x => String(x.id) === String(id));
 
   // Atribuir, assumir e largar passam pela mesma porta.
   const mudarDono=(t,dono)=>{
@@ -7285,6 +7304,8 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
           </p>
         </div>
         <button className="btn-gold" style={{padding:mob?"9px 14px":"10px 22px",fontSize:12}} onClick={()=>{setForm(novaTarefa());setEditId(null);setMod(true);}}><Ic n="plus" s={14} c="#0E0E0F"/>{mob?"Criar":"Nova Tarefa"}</button>
+        <button className="btn-ghost" style={{padding:mob?"9px 14px":"10px 18px",fontSize:12,marginLeft:8}}
+          onClick={()=>{setFormR(null);setModalR(true);}}>🤝 {mob?"Reunião":"Nova Reunião"}</button>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -7303,7 +7324,7 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
 
       {vista==="calendario"&&(
         <>
-          <CalendarioMes tarefas={tarefas} mesAtual={mesAtual} setMesAtual={setMesAtual} onDiaClick={(date,tfs)=>setDiaModal({date,tfs})} diaDest={diaDest}/>
+          <CalendarioMes tarefas={itens} mesAtual={mesAtual} setMesAtual={setMesAtual} onDiaClick={(date,tfs)=>setDiaModal({date,tfs})} diaDest={diaDest}/>
           <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:`${G.blue}50`}}/><span style={{fontSize:11,color:G.textDim}}>Pendente</span></div>
             <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:2,background:`${G.textDim}40`}}/><span style={{fontSize:11,color:G.textDim}}>Concluída</span></div>
@@ -7315,7 +7336,9 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
       {vista==="lista"&&(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:G.textDim}}><p style={{fontSize:28,marginBottom:8}}>✓</p><p>Sem tarefas</p></div>}
-          {filtered.sort((a,b)=>a.data.localeCompare(b.data)).map(t=>(
+          {filtered.sort((a,b)=>a.data.localeCompare(b.data)).map(t=>t.ehReuniao?(
+            <LinhaReuniao key={t.id} linha={t} user={user} onAbrir={()=>setDetailR(porId(t.reuniaoId))}/>
+          ):(
             <div key={t.id} className="card" style={{display:"flex",alignItems:"center",gap:10,opacity:t.concluida?.55:1,padding:"13px 14px",cursor:"pointer"}} onClick={()=>setDetailT(t)}>
               <button onClick={e=>{e.stopPropagation();toggleConcluida(t);}} style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${t.concluida?G.green:G.border}`,background:t.concluida?G.green:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.concluida&&<Ic n="check" s={11} c="#fff"/>}</button>
               <span style={{fontSize:18,flexShrink:0}}>{tIco[t.tipo]||"📌"}</span>
@@ -7448,6 +7471,22 @@ const Agenda=({tarefas,setTarefas,clientes,user,mob})=>{
               {editId?"Guardar":"Criar Tarefa"}
             </button>
           </div>
+        </Modal>
+      )}
+      {/* ── Reuniões de prospecção ── */}
+      {modalR && (
+        <Modal title={formR?.id?"Editar Reunião":"Nova Reunião de Prospecção"} onClose={()=>setModalR(false)}>
+          <ReuniaoForm reuniao={formR} user={user}
+            onGravar={async(r)=>{ await reunioes.gravar(r); setModalR(false); setFormR(null); }}
+            onCancelar={()=>{setModalR(false);setFormR(null);}}/>
+        </Modal>
+      )}
+      {detailR && (
+        <Modal title="" onClose={()=>setDetailR(null)}>
+          <ReuniaoDetalhe reuniao={detailR} user={user} mob={mob}
+            onMudar={async(campos)=>{ const g=await reunioes.actualizar(detailR.id,campos); setDetailR(p=>({...p,...g})); }}
+            onEditar={()=>{setFormR(detailR);setDetailR(null);setModalR(true);}}
+            onEliminar={async()=>{ if(!confirm("Eliminar esta reunião?"))return; await reunioes.eliminar(detailR.id); setDetailR(null); }}/>
         </Modal>
       )}
       {detailT && <TarefaDetalhe tarefa={detailT} user={user} onClose={()=>setDetailT(null)} onEdit={()=>{setForm(detailT);setEditId(detailT.id);setDetailT(null);setMod(true);}} onDelete={()=>{eliminar(detailT);setDetailT(null);}} onToggle={()=>{toggleConcluida(detailT);setDetailT(p=>({...p,concluida:!p.concluida}));}} onExportICS={()=>exportarEMostrar(detailT)}
